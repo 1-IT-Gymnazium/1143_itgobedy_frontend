@@ -95,17 +95,6 @@ function closeBetaBanner() {
 
 <template>
   <div class="admin-dashboard">
-    <!-- Beta notification banner -->
-    <div v-if="betaBannerVisible" class="beta-banner">
-      <div class="beta-content">
-        <span>⚠️ This application is currently in BETA development ⚠️</span>
-        <button @click="closeBetaBanner" class="beta-close">
-          <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    </div>
 
     <!-- Header -->
     <header class="dashboard-header">
@@ -255,53 +244,12 @@ function closeBetaBanner() {
   flex-direction: column;
 }
 
-/* Beta Banner */
-.beta-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
-  background: var(--error-bg);
-  border-left: 4px solid var(--error-text);
-  color: var(--error-text);
-  padding: var(--space-md);
-  font-weight: var(--font-weight-bold);
-}
-
-.beta-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  text-align: center;
-}
-
-.beta-close {
-  background: none;
-  border: none;
-  color: var(--error-text);
-  cursor: pointer;
-  padding: var(--space-xs);
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-}
-
-.beta-close:hover {
-  background: rgba(220, 38, 38, 0.1);
-}
-
-.beta-close .icon {
-  width: 20px;
-  height: 20px;
-}
-
 /* Header */
 .dashboard-header {
   background: var(--brand-primary);
   padding: var(--space-xl) 0;
   box-shadow: var(--shadow-md);
   position: relative;
-  margin-top: 60px; /* Account for beta banner */
 }
 
 .header-container {

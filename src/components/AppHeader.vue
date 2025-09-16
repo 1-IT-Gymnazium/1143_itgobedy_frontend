@@ -14,7 +14,9 @@
             <i class="bi bi-house"></i>
             <span class="nav-text">Dashboard</span>
           </button>
+          <!-- Admin button only for admin users -->
           <button
+            v-if="isAdmin"
             @click="goToAdmin"
             class="nav-btn admin-btn"
             :class="{ active: route.name === 'admin-dashboard' }"
@@ -29,8 +31,8 @@
           class="theme-toggle"
           :aria-label="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
         >
-          <i v-if="!isDarkMode" class="theme-icon bi bi-moon" stroke="currentColor"></i>
-          <i v-else class="theme-icon bi bi-sun" stroke="currentColor"></i>
+          <i v-if="!isDarkMode" class="bi bi-moon"></i>
+          <i v-else class="bi bi-sun"></i>
         </button>
       </div>
     </div>
@@ -59,12 +61,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-lg) 0;
-  min-height: 80px;
+  padding: var(--space-sm) 0; /* Reduced from var(--space-lg) */
+  min-height: 56px; /* Reduced from 80px */
 }
 
 .header-logo {
-  height: 64px;
+  height: 40px; /* Reduced from 64px */
   width: auto;
   max-width: 30vw;
   transition: transform var(--transition-fast);
@@ -126,6 +128,40 @@
   display: none;
 }
 
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px; /* Reduced from 44px */
+  height: 36px; /* Reduced from 44px */
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-toggle:hover {
+  background: var(--bg-tertiary);
+  color: var(--brand-primary);
+  transform: scale(1.1);
+}
+
+.theme-toggle:focus {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.theme-toggle i {
+  font-size: 16px; /* Fixed size for icons */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (min-width: 640px) {
   .nav-text {
     display: inline;
@@ -138,13 +174,22 @@
   }
 
   .header-content {
-    padding: var(--space-md) 0;
-    min-height: 64px;
+    padding: var(--space-xs) 0; /* Even smaller on mobile */
+    min-height: 48px; /* Smaller on mobile */
+  }
+
+  .header-logo {
+    height: 32px; /* Smaller logo on mobile */
+    max-width: 60vw;
   }
 
   .theme-toggle {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .theme-toggle i {
+    font-size: 14px;
   }
 
   .header-nav {
@@ -155,10 +200,19 @@
     padding: var(--space-xs) var(--space-sm);
   }
 }
+
+@media (max-width: 480px) {
+  .header-logo {
+    height: 28px;
+    max-width: 75vw;
+  }
+}
 </style>
-<script setup lang="ts">
+
+<script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
+import { computed } from 'vue'
 
 defineProps({
   isDarkMode: Boolean
@@ -168,7 +222,18 @@ defineEmits(['toggle-theme'])
 
 const router = useRouter()
 const route = useRoute()
-const { isAuthenticated } = useAuth()
+const { isAuthenticated, user } = useAuth()
+
+// Check if user is admin (using environment variables)
+const isAdmin = computed(() => {
+  if (!user.value) return false;
+
+  // Get admin emails from environment variable
+  const adminEmailsString = import.meta.env.VITE_ADMIN_EMAILS || '';
+  const adminEmails = adminEmailsString.split(',').map(email => email.trim()).filter(email => email);
+
+  return adminEmails.includes(user.value.email);
+});
 
 function goToAdmin() {
   router.push('/admin')

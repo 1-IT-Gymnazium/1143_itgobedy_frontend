@@ -36,7 +36,7 @@ const router = createRouter({
       path: '/admin',
       name: 'admin-dashboard',
       component: AdminDashboard,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
       path: '/:pathMatch(.*)*',
@@ -46,11 +46,28 @@ const router = createRouter({
   ]
 })
 
-// Navigation guard to check authentication
+// Helper function to check if user is admin (now using environment variables)
+function isUserAdmin() {
+  const userEmail = localStorage.getItem('user_email');
+  if (!userEmail) return false;
+
+  // Get admin emails from environment variable
+  const adminEmailsString = import.meta.env.VITE_ADMIN_EMAILS || '';
+  const adminEmails = adminEmailsString.split(',').map(email => email.trim()).filter(email => email);
+
+  return adminEmails.includes(userEmail);
+}
+
+// Navigation guard to check authentication and admin access
 router.beforeEach((to, from, next) => {
-  if (to.meta.requiresAuth && !localStorage.getItem('is_authenticated')) {
+  const isAuthenticated = localStorage.getItem('is_authenticated');
+
+  if (to.meta.requiresAuth && !isAuthenticated) {
     // Redirect to login if trying to access protected route without authentication
     next({ name: 'login' })
+  } else if (to.meta.requiresAdmin && !isUserAdmin()) {
+    // Redirect to dashboard if trying to access admin route without admin privileges
+    next({ name: 'dashboard' })
   } else {
     // Allow navigation
     next()
