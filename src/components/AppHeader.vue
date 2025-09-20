@@ -4,8 +4,8 @@
       <div class="header-content">
         <img src="https://static.wixstatic.com/media/b66571_d6f3daf98b47425482c8b9ac7c3c0c9b~mv2.png" alt="ITG" class="header-logo"/>
 
-        <!-- Navigation Menu (only show when authenticated) -->
-        <nav v-if="isAuthenticated" class="header-nav">
+        <!-- Navigation Menu (only show when authenticated and not on card scanner) -->
+        <nav v-if="isAuthenticated && route.name !== 'card-scanner'" class="header-nav">
           <button
             @click="goToDashboard"
             class="nav-btn"

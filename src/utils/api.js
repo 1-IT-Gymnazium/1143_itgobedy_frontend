@@ -52,6 +52,15 @@ export const api = {
   // Students
   getStudents: () => apiRequest('/api/students'),
 
+  assignCard: (studentData) => apiRequest('/api/assign-card', {
+    method: 'POST',
+    body: JSON.stringify(studentData)
+  }),
+
+  deleteStudent: (studentId) => apiRequest(`/api/students/${studentId}`, {
+    method: 'DELETE'
+  }),
+
   // Lunch operations
   giftLunch: (recipientData) => apiRequest('/api/give_lunch_direct', {
     method: 'POST',

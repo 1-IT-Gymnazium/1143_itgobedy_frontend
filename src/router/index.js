@@ -5,6 +5,8 @@ import NotFound from '../components/NotFound.vue'
 import PublicPool from '../components/PublicPool.vue';
 import GiftLunch from '../components/GiftLunch.vue';
 import AdminDashboard from '../components/AdminDashboard.vue';
+import CardScanner from '../components/CardScanner.vue';
+import CardAssignment from '../components/CardAssignment.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -36,6 +38,18 @@ const router = createRouter({
       path: '/admin',
       name: 'admin-dashboard',
       component: AdminDashboard,
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/admin/card-scanner',
+      name: 'card-scanner',
+      component: CardScanner,
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/admin/card-assignment',
+      name: 'card-assignment',
+      component: CardAssignment,
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {

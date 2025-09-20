@@ -9,7 +9,7 @@
   transition: background var(--transition-normal);
 }
 
-/* Modern Button Components with Shimmer Animation */
+/* Modern Button Components - NO GLOBAL SHIMMER */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -28,62 +28,6 @@
   outline: none;
   position: relative;
   overflow: hidden;
-}
-
-/* Shimmer Animation for ALL buttons - Fixed positioning */
-.btn::before,
-button::before,
-.custom-google-btn::before,
-.theme-toggle::before,
-.logout-btn::before,
-.action-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-  transition: left var(--transition-slow);
-  z-index: 1;
-  pointer-events: none;
-}
-
-.btn:hover::before,
-button:hover::before,
-.custom-google-btn:hover::before,
-.theme-toggle:hover::before,
-.logout-btn:hover::before,
-.action-card:hover::before {
-  left: 100%;
-}
-
-/* Fix logout button animation */
-.logout-btn {
-  position: relative;
-  overflow: hidden;
-}
-
-.logout-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left var(--transition-slow);
-  z-index: 0;
-  pointer-events: none;
-}
-
-.logout-btn:hover::before {
-  left: 100%;
-}
-
-.logout-btn > * {
-  position: relative;
-  z-index: 1;
 }
 
 .btn:focus {
@@ -149,43 +93,58 @@ button:hover::before,
 .btn-sm {
   padding: var(--space-sm) var(--space-md);
   font-size: var(--font-size-xs);
-  border-radius: var(--radius-md);
+}
+
+.btn-md {
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--font-size-sm);
 }
 
 .btn-lg {
-  padding: var(--space-lg) var(--space-2xl);
-  font-size: var(--font-size-lg);
-  border-radius: var(--radius-xl);
+  padding: var(--space-lg) var(--space-xl);
+  font-size: var(--font-size-base);
 }
 
-/* Card Components */
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-lg);
-  transition: all var(--transition-normal);
+/* Utility Classes */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Card Component */
+.card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  transition: all var(--transition-normal);
 }
 
 .card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-xl);
-  border-color: var(--border-secondary);
 }
 
 .card-header {
-  padding: var(--space-xl);
+  padding: var(--space-lg);
   border-bottom: 1px solid var(--border-primary);
-  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+  background: var(--bg-secondary);
 }
 
 .card-body {
-  padding: var(--space-xl);
+  padding: var(--space-lg);
 }
 
 .card-footer {
-  padding: var(--space-xl);
+  padding: var(--space-lg);
   border-top: 1px solid var(--border-primary);
   background: var(--bg-secondary);
 }
@@ -197,32 +156,27 @@ button:hover::before,
 
 .form-label {
   display: block;
-  margin-bottom: var(--space-sm);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
+  margin-bottom: var(--space-sm);
 }
 
 .form-input {
   width: 100%;
   padding: var(--space-md);
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-base);
-  color: var(--text-primary);
-  background: var(--bg-card);
-  border: 2px solid var(--border-primary);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   transition: all var(--transition-fast);
 }
 
 .form-input:focus {
+  outline: none;
   border-color: var(--border-focus);
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
-  outline: none;
-}
-
-.form-input::placeholder {
-  color: var(--text-tertiary);
 }
 
 /* Alert Components */
@@ -231,18 +185,7 @@ button:hover::before,
   border-radius: var(--radius-lg);
   border: 1px solid;
   font-weight: var(--font-weight-medium);
-  position: relative;
-  overflow: hidden;
-}
-
-.alert::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 100%;
-  background: currentColor;
+  margin-bottom: var(--space-lg);
 }
 
 .alert-success {
@@ -269,106 +212,47 @@ button:hover::before,
   color: var(--info-text);
 }
 
-/* Loading Components */
-.spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--border-primary);
-  border-top: 2px solid var(--brand-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+/* Animation Utilities */
+.fade-in {
+  animation: fadeIn 0.6s ease-out;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Utility Classes */
-.container {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 var(--space-lg);
-}
-
-.text-center { text-align: center; }
-.text-left { text-align: left; }
-.text-right { text-align: right; }
-
-.flex { display: flex; }
-.flex-col { flex-direction: column; }
-.items-center { align-items: center; }
-.justify-center { justify-content: center; }
-.justify-between { justify-content: space-between; }
-
-.w-full { width: 100%; }
-.h-full { height: 100%; }
-
-.mb-0 { margin-bottom: 0; }
-.mb-1 { margin-bottom: var(--space-xs); }
-.mb-2 { margin-bottom: var(--space-sm); }
-.mb-3 { margin-bottom: var(--space-md); }
-.mb-4 { margin-bottom: var(--space-lg); }
-.mb-5 { margin-bottom: var(--space-xl); }
-
-.mt-0 { margin-top: 0; }
-.mt-1 { margin-top: var(--space-xs); }
-.mt-2 { margin-top: var(--space-sm); }
-.mt-3 { margin-top: var(--space-md); }
-.mt-4 { margin-top: var(--space-lg); }
-.mt-5 { margin-top: var(--space-xl); }
-
-/* Responsive */
-@media (max-width: 768px) {
-  .container {
-    padding: 0 var(--space-md);
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
-  .btn {
-    padding: var(--space-sm) var(--space-lg);
-    font-size: var(--font-size-sm);
+.slide-up {
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Utilities */
+@media (max-width: 768px) {
+  .card {
+    margin: var(--space-md);
+    border-radius: var(--radius-lg);
   }
 
   .card-header,
   .card-body,
   .card-footer {
-    padding: var(--space-lg);
+    padding: var(--space-md);
   }
 }
-
-/* Layout grids */
-.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
-.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
-
-/* Header */
-.header { background: #e53e3e; color: #fff; padding: 1rem 0; position: relative; }
-.logo-center { position: absolute; left: 50%; transform: translateX(-50%); }
-.logo { height: 60px; }
-.current-time { font-weight: bold; }
-
-/* Stats */
-.stat-value { font-size: 2rem; font-weight: bold; }
-.stat-red { color: #e53e3e; }
-.stat-green { color: #38a169; }
-.stat-blue { color: #3182ce; }
-.stat-yellow { color: #d69e2e; }
-
-/* Icons */
-.icon-circle {
-  width: 60px; height: 60px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 1rem;
-  font-size: 1.5rem;
-}
-.icon-circle.red { background: #fed7d7; color: #e53e3e; }
-.icon-circle.blue { background: #bee3f8; color: #3182ce; }
-
-/* Hover effect */
-.hover-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-.hover-card:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-
-/* Scroll list */
-.scroll-box { max-height: 200px; overflow-y: auto; }
-.list-item { padding: 0.5rem 0; border-bottom: 1px solid #eee; }
