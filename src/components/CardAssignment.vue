@@ -106,8 +106,21 @@ async function deleteStudent(studentId: string, studentName: string) {
 }
 
 const filteredStudents = computed(() => {
-  if (!studentSearch.value) return students.value;
+  if (!studentSearch.value) {
+    // Filter out any students with missing required properties
+    return students.value.filter(student =>
+      student &&
+      student.name &&
+      student.card_uid &&
+      student.id
+    );
+  }
+
   return students.value.filter(student =>
+    student &&
+    student.name &&
+    student.card_uid &&
+    student.id &&
     student.name.toLowerCase().includes(studentSearch.value.toLowerCase())
   );
 });
