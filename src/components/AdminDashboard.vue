@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuth } from '../composables/useAuth.js';
+import { useAuth } from '@/composables/useAuth';
+import { api, apiRequest } from '../utils/api.js';
+import { useNotifications } from '../composables/useNotifications.js';
+
+const { showError } = useNotifications();
 
 const router = useRouter();
 const { logout } = useAuth();
+const refreshInterval = ref(null);
 
 // Reactive data
 const currentTime = ref('');
 const stats = ref({
   lunchCount: 0,
   availableCount: 0,
-  recentActivityCount: 0,
   totalStudents: 0,
   studentsWithLunch: 0,
   studentsWithoutLunch: 0
@@ -24,16 +28,40 @@ const betaBannerVisible = ref(true);
 let timeInterval = null;
 
 onMounted(async () => {
-  updateTime();
-  timeInterval = setInterval(updateTime, 1000);
+
   await fetchDashboardData();
+  startAutoRefresh();
+  timeInterval = setInterval(updateTime, 1000);
 });
 
 onUnmounted(() => {
-  if (timeInterval) {
-    clearInterval(timeInterval);
-  }
+  stopAutoRefresh();
 });
+
+// Function to start automatic refresh
+function startAutoRefresh() {
+  // Clear any existing interval
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value);
+  }
+
+  // Set up new interval to refresh every minute (60000ms)
+  refreshInterval.value = setInterval(() => {
+    fetchDashboardData();
+  }, 60000);
+}
+
+// Function to stop automatic refresh
+function stopAutoRefresh() {
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value);
+    refreshInterval.value = null;
+  }
+}
+
+async function refreshData() {
+  await fetchDashboardData();
+}
 
 function updateTime() {
   const now = new Date();
@@ -49,28 +77,49 @@ function updateTime() {
 
 async function fetchDashboardData() {
   try {
-    // Simulate API call - replace with actual API endpoints
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    isLoading.value = true;
 
-    // Mock data - replace with actual API calls
+    // Fetch all data in parallel
+    const [poolResponse, usersResponse, recent] = await Promise.all([
+      apiRequest('/api/lunches').catch(() => ({ "lunch 1": 0, "lunch 2": 0, "lunch 3": 0 })),
+      apiRequest('/api/getAll').catch(() => ({ users: [] })),
+      apiRequest('/api/recentLunches').catch(() => ({ recent: [] }))
+    ]);
+
+    console.log(usersResponse);
+
+    // Calculate pool totals
+    const poolData = poolResponse;
+
+    // Calculate student statistics
+    const allUsers = usersResponse.users || [];
+    const usersWithLunch = allUsers.filter(users => users.has_lunch === true).length;
+    const usersWithoutLunch = allUsers.length - usersWithLunch;
+
+    // Recent assignments
+    recentAssignments.value = recent || [];
+
+    console.log(recentAssignments);
+
+    // Update stats
     stats.value = {
-      lunchCount: 45,
-      availableCount: 12,
-      recentActivityCount: 23,
-      totalStudents: 150,
-      studentsWithLunch: 45,
-      studentsWithoutLunch: 105
+      lunchCount: usersWithLunch,
+      availableCount: {
+        1: poolData["lunch 1"],
+        2: poolData["lunch 2"],
+        3: poolData["lunch 3"]
+      },
+      totalStudents: allUsers.length,
+      studentsWithLunch: usersWithLunch,
+      studentsWithoutLunch: usersWithoutLunch
     };
 
-    recentAssignments.value = [
-      { studentName: 'John Doe', lunchId: '001' },
-      { studentName: 'Jane Smith', lunchId: '002' },
-      { studentName: 'Mike Johnson', lunchId: '003' }
-    ];
+    console.log('Stats updated:', stats.value);
 
-    isLoading.value = false;
   } catch (error) {
     console.error('Failed to fetch dashboard data:', error);
+    showError('Failed to load dashboard data');
+  } finally {
     isLoading.value = false;
   }
 }
@@ -152,20 +201,13 @@ function closeBetaBanner() {
                   <i class="bi bi-box-seam"></i>
                 </div>
               </div>
-              <div class="stat-value green">{{ stats.availableCount }}</div>
-              <div class="stat-description">Lunches available in the pool</div>
-            </div>
-
-            <!-- Recent Activity -->
-            <div class="stat-card recent-activity">
-              <div class="stat-header">
-                <h3 class="stat-title">Recent Activity</h3>
-                <div class="stat-icon blue">
-                  <i class="bi bi-people"></i>
+              <div class="lunch-breakdown">
+                <div v-for="num in [1, 2, 3]" :key="num" class="lunch-item">
+                  <span class="lunch-label">#{{ num }}:</span>
+                  <span class="lunch-count">{{ stats.availableCount[ num ] || 0 }}</span>
                 </div>
               </div>
-              <div class="stat-value blue">{{ stats.recentActivityCount }}</div>
-              <div class="stat-description">Student logins in the last 24 hours</div>
+              <div class="stat-description">Lunches available in the pool</div>
             </div>
           </div>
 
@@ -218,10 +260,11 @@ function closeBetaBanner() {
             <div class="analytics-card recent-assignments">
               <h2 class="analytics-title">Recent Lunch Assignments</h2>
               <div class="assignments-list">
-                <div v-if="recentAssignments.length > 0" class="assignments-content">
-                  <div v-for="assignment in recentAssignments" :key="assignment.lunchId" class="assignment-item">
-                    <span class="assignment-name">{{ assignment.studentName }}</span>
-                    <span class="assignment-lunch">Lunch #{{ assignment.lunchId }}</span>
+                <div v-if="recentAssignments.recent_lunches && recentAssignments.recent_lunches.length > 0" class="assignments-content">
+                  <div     v-for="assignment in recentAssignments.recent_lunches" :key="`${assignment.student_name}-${assignment.timestamp}`" class="assignment-item">
+                    <span class="assignment-name">{{ assignment.student_name }}</span>
+                    <span class="assignment-lunch">Lunch #{{ assignment.lunch_id }}</span>
+                    <span class="assignment-timestamp">{{ assignment.timestamp }}</span>
                   </div>
                 </div>
                 <div v-else class="no-assignments">
@@ -427,6 +470,34 @@ function closeBetaBanner() {
   font-size: var(--font-size-sm);
 }
 
+.lunch-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0;
+}
+
+.lunch-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.lunch-label {
+  font-size: 2rem;
+  color: var(--brand-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.lunch-count {
+  font-size: 2rem;
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-bold);
+}
+
 /* Administrative Tools */
 .admin-tools-section {
   background: var(--bg-card);
@@ -586,6 +657,11 @@ function closeBetaBanner() {
 }
 
 .assignment-lunch {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.assignment-timestamp{
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
 }
