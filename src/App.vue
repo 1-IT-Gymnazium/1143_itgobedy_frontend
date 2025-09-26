@@ -1,19 +1,38 @@
 <script setup>
 import { RouterView } from 'vue-router'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import AppFooter from './components/AppFooter.vue'
 import AppHeader from "./components/AppHeader.vue";
+import { socketAPI } from './utils/socket.js'
+import { useAuth } from './composables/useAuth.js'
 
 // Theme management
 const isDarkMode = ref(false)
+const { isAuthenticated } = useAuth()
 
-// Initialize theme from localStorage or system preference
+// Watch for authentication changes to connect/disconnect socket
+watch(isAuthenticated, (newValue) => {
+  if (newValue) {
+    // User authenticated - connect socket
+    socketAPI.connect()
+  } else {
+    // User logged out - disconnect socket
+    socketAPI.disconnect()
+  }
+}, { immediate: true }) // Changed back to true to handle page reload
+
+// Initialize theme
 onMounted(() => {
   const savedTheme = localStorage.getItem('theme')
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
 
   isDarkMode.value = savedTheme ? savedTheme === 'dark' : prefersDark
   updateTheme()
+})
+
+// Cleanup socket connection on unmount
+onUnmounted(() => {
+  socketAPI.disconnect()
 })
 
 // Update theme

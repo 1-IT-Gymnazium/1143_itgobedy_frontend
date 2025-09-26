@@ -2,8 +2,8 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
-import { api, apiRequest } from '../utils/api.js';
-import { useNotifications } from '../composables/useNotifications.js';
+import { api, socketAPI } from '@/utils/api';
+import { useNotifications } from '@/composables/useNotifications';
 
 const { showError } = useNotifications();
 
@@ -27,7 +27,38 @@ const betaBannerVisible = ref(true);
 // Time update interval
 let timeInterval = null;
 
+// Real-time update handlers
+const handleLunchUpdates = (data) => {
+  console.log('Real-time lunch pool update received:', data);
+  stats.value.availableCount = {
+    1: data["lunch 1"] || 0,
+    2: data["lunch 2"] || 0,
+    3: data["lunch 3"] || 0
+  };
+};
+
+const handleAllStudentUpdates = (data) => {
+  console.log('Real-time all students update received:', data);
+  const allUsers = data.users || [];
+  const usersWithLunch = allUsers.filter(user => user.has_lunch === true).length;
+  const usersWithoutLunch = allUsers.length - usersWithLunch;
+
+  stats.value.totalStudents = allUsers.length;
+  stats.value.studentsWithLunch = usersWithLunch;
+  stats.value.studentsWithoutLunch = usersWithoutLunch;
+  stats.value.lunchCount = usersWithLunch;
+};
+
+const handleRecentLunchUpdates = (data) => {
+  console.log('Real-time recent lunches update received:', data);
+  recentAssignments.value = data.recent_lunches || [];
+};
+
 onMounted(async () => {
+  // Set up real-time listeners
+  socketAPI.onLunchUpdates(handleLunchUpdates);
+  socketAPI.onAllStudentUpdates(handleAllStudentUpdates);
+  socketAPI.onRecentLunchUpdates(handleRecentLunchUpdates);
 
   await fetchDashboardData();
   startAutoRefresh();
@@ -35,20 +66,26 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  // Clean up real-time listeners
+  socketAPI.offLunchUpdates(handleLunchUpdates);
+  socketAPI.offAllStudentUpdates(handleAllStudentUpdates);
+  socketAPI.offRecentLunchUpdates(handleRecentLunchUpdates);
+
   stopAutoRefresh();
 });
 
-// Function to start automatic refresh
+// Function to start automatic refresh (reduced frequency since we have real-time updates)
 function startAutoRefresh() {
   // Clear any existing interval
   if (refreshInterval.value) {
     clearInterval(refreshInterval.value);
   }
 
-  // Set up new interval to refresh every minute (60000ms)
+  // Set up new interval to refresh every 5 minutes (300000ms) instead of 1 minute
+  // since we now have real-time updates
   refreshInterval.value = setInterval(() => {
     fetchDashboardData();
-  }, 60000);
+  }, 300000);
 }
 
 // Function to stop automatic refresh
@@ -79,11 +116,11 @@ async function fetchDashboardData() {
   try {
     isLoading.value = true;
 
-    // Fetch all data in parallel
+    // Fetch all data in parallel using socket connections
     const [poolResponse, usersResponse, recent] = await Promise.all([
-      apiRequest('/api/lunches').catch(() => ({ "lunch 1": 0, "lunch 2": 0, "lunch 3": 0 })),
-      apiRequest('/api/getAll').catch(() => ({ users: [] })),
-      apiRequest('/api/recentLunches').catch(() => ({ recent: [] }))
+      api.getLunches().catch(() => ({ "lunch 1": 0, "lunch 2": 0, "lunch 3": 0 })),
+      api.getAllStudents().catch(() => ({ users: [] })),
+      api.getRecentLunches().catch(() => ({ recent_lunches: [] }))
     ]);
 
     console.log(usersResponse);
@@ -97,7 +134,7 @@ async function fetchDashboardData() {
     const usersWithoutLunch = allUsers.length - usersWithLunch;
 
     // Recent assignments
-    recentAssignments.value = recent || [];
+    recentAssignments.value = recent.recent_lunches || [];
 
     console.log(recentAssignments);
 

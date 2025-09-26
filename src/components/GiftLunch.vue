@@ -1,9 +1,9 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { useNotifications } from '../composables/useNotifications.js';
-import { api } from '../utils/api.js';
+import { api, socketAPI } from '../utils/api.js';
 
 const router = useRouter();
 const { requireAuth } = useAuth();
@@ -23,15 +23,40 @@ const filteredStudents = computed(() => {
   );
 });
 
+// Real-time update handlers
+const handleUserInfoUpdate = (userData) => {
+  const hasLunch = userData.lunch?.hasLunch || false;
+  userHasLunch.value = hasLunch;
+
+  if (!hasLunch) {
+    showError("You don't have lunch to gift.");
+  }
+};
+
+const handleStudentUpdates = (data) => {
+  console.log('Real-time students update received:', data);
+  students.value = data.students || [];
+};
+
 onMounted(async () => {
   // Check authentication
   if (!requireAuth()) return;
+
+  // Set up real-time listeners
+  socketAPI.onUserInfoUpdates(handleUserInfoUpdate);
+  socketAPI.onStudentUpdates(handleStudentUpdates);
 
   // Check if user has lunch to gift and load students
   await Promise.all([
     checkUserLunchStatus(),
     loadStudents()
   ]);
+});
+
+onUnmounted(() => {
+  // Clean up real-time listeners
+  socketAPI.offUserInfoUpdates(handleUserInfoUpdate);
+  socketAPI.offStudentUpdates(handleStudentUpdates);
 });
 
 async function checkUserLunchStatus() {
@@ -51,7 +76,7 @@ async function checkUserLunchStatus() {
 async function loadStudents() {
   try {
     isLoading.value = true;
-    const data = await api.getStudents();
+    const data = await api.getStudents(); // Now uses socket connection
     students.value = data.students || [];
   } catch (error) {
     console.error('Error loading students:', error);

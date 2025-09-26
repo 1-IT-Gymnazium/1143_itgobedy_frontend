@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
-import { api } from '../utils/api.js';
+import { api, socketAPI } from '../utils/api.js';
 
 const router = useRouter();
 const { user, requireAuth, logout } = useAuth();
@@ -19,58 +19,73 @@ const currentDate = computed(() => {
   });
 });
 
+// Real-time update handler
+const handleUserInfoUpdate = (userData) => {
+  // Update user name if available
+  if (userData?.name) {
+    user.value.name = userData.name;
+  }
+
+  // Extract lunch information
+  if (userData.lunch) {
+    if (userData.lunch.hasLunch) {
+      hasLunchToday.value = true;
+      lunchNumber.value = userData.lunch.number;
+      localStorage.setItem('lunchNumber', lunchNumber.value);
+    } else {
+      hasLunchToday.value = false;
+      localStorage.removeItem('lunchNumber');
+    }
+  } else {
+    hasLunchToday.value = false;
+  }
+};
+
+// Function to load user info with retry logic
+const loadUserInfo = async (retryCount = 0) => {
+  const maxRetries = 5;
+
+  try {
+    // Check if socket is connected
+    if (!socketAPI.isConnected() && retryCount < maxRetries) {
+      // Wait a bit and retry
+      setTimeout(() => loadUserInfo(retryCount + 1), 500);
+      return;
+    }
+
+    // Get initial user info via socket
+    const userData = await api.getUserInfo();
+    handleUserInfoUpdate(userData);
+
+  } catch (error) {
+    if (retryCount < maxRetries) {
+      // Retry after a delay
+      setTimeout(() => loadUserInfo(retryCount + 1), 1000);
+    } else {
+      // Final fallback - use localStorage data
+      const storedLunchNumber = localStorage.getItem('lunchNumber');
+      if (storedLunchNumber) {
+        hasLunchToday.value = true;
+        lunchNumber.value = storedLunchNumber;
+      }
+    }
+  }
+};
 
 onMounted(async () => {
   // Check authentication
   if (!requireAuth()) return;
 
-  try {
-    // Debug: Check what cookies we have
-    console.log('Current cookies:', document.cookie);
-    console.log('Making request to:', `${import.meta.env.VITE_API_URL}/api/user-info`);
+  // Set up real-time updates listener
+  socketAPI.onUserInfoUpdates(handleUserInfoUpdate);
 
-    // Get user info and lunch data
-    console.log('Fetching user info...');
-    const userData = await api.getUserInfo();
-    console.log('User data received:', userData);
+  // Load user info with retry logic
+  await loadUserInfo();
+});
 
-    // Update user name if available
-    if (userData?.name) {
-      user.value.name = userData.name;
-    }
-
-    // Extract lunch information
-    if (userData.lunch) {
-      console.log('Lunch data:', userData.lunch);
-      if (userData.lunch.hasLunch) {
-        hasLunchToday.value = true;
-        lunchNumber.value = userData.lunch.number;
-        localStorage.setItem('lunchNumber', lunchNumber.value);
-        console.log('Setting lunch number to:', userData.lunch.number);
-      } else {
-        hasLunchToday.value = false;
-        localStorage.removeItem('lunchNumber');
-        console.log('No lunch found for today');
-      }
-    } else {
-      hasLunchToday.value = false;
-      console.log('No lunch property in user data');
-    }
-  } catch (error) {
-    console.error('Dashboard initialization error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack
-    });
-
-    // Continue showing dashboard with localStorage data
-    const storedLunchNumber = localStorage.getItem('lunchNumber');
-    if (storedLunchNumber) {
-      hasLunchToday.value = true;
-      lunchNumber.value = storedLunchNumber;
-      console.log('Using stored lunch number:', storedLunchNumber);
-    }
-  }
+onUnmounted(() => {
+  // Clean up real-time listeners
+  socketAPI.offUserInfoUpdates(handleUserInfoUpdate);
 });
 </script>
 

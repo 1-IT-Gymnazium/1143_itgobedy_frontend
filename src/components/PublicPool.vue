@@ -1,9 +1,9 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { useNotifications } from '../composables/useNotifications.js';
-import { api, apiRequest } from '../utils/api.js';
+import { api, apiRequest, socketAPI } from '../utils/api.js';
 
 const router = useRouter();
 const { requireAuth } = useAuth();
@@ -22,13 +22,37 @@ const filteredLunches = computed(() => {
   );
 });
 
+// Real-time update handlers
+const handleUserInfoUpdate = (userData) => {
+  userHasLunch.value = userData.lunch?.hasLunch || false;
+};
+
+const handleLunchUpdates = (data) => {
+  console.log('Real-time lunch pool update received:', data);
+  pool.value = {
+    1: data["lunch 1"] || 0,
+    2: data["lunch 2"] || 0,
+    3: data["lunch 3"] || 0
+  };
+};
+
 onMounted(async () => {
   // Check authentication
   if (!requireAuth()) return;
 
-  // Fetch user lunch status and pool data
+  // Set up real-time listeners
+  socketAPI.onUserInfoUpdates(handleUserInfoUpdate);
+  socketAPI.onLunchUpdates(handleLunchUpdates);
+
+  // Fetch initial data
   await fetchUserLunch();
   await fetchPool();
+});
+
+onUnmounted(() => {
+  // Clean up real-time listeners
+  socketAPI.offUserInfoUpdates(handleUserInfoUpdate);
+  socketAPI.offLunchUpdates(handleLunchUpdates);
 });
 
 async function fetchUserLunch() {
@@ -43,7 +67,7 @@ async function fetchUserLunch() {
 async function fetchPool() {
   try {
     isLoading.value = true;
-    const data = await apiRequest('/api/lunches');
+    const data = await api.getLunches(); // Now uses socket connection
     pool.value = {
       1: data["lunch 1"] || 0,
       2: data["lunch 2"] || 0,
