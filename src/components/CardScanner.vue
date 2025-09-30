@@ -8,10 +8,13 @@ const router = useRouter();
 // Reactive data
 const currentTime = ref('');
 const cardStatus = ref('Waiting for card...');
+const errorMessage = ref('');
+const errorType = ref(''); // 'error', 'warning', 'success'
 const studentInfo = ref({
   visible: false,
   name: '',
-  lunchNumber: null
+  lunchNumber: null,
+  status: '' // 'success', 'error', 'warning'
 });
 const scanHistory = ref([]);
 const showPinModal = ref(false);
@@ -104,6 +107,8 @@ function updateTime() {
 function resetDisplay() {
   cardStatus.value = 'Waiting for card...';
   studentInfo.value.visible = false;
+  errorMessage.value = '';
+  errorType.value = '';
 }
 
 function addToHistory(data) {
@@ -118,9 +123,12 @@ function addToHistory(data) {
   const historyItem = {
     id: Date.now(),
     time,
-    studentName: data.student_name || 'Unassigned Card',
+    studentName: data.student_name || data.name || 'Error',
     lunchNumber: data.lunch_number,
-    isUnassigned: !!data.uid
+    status: data.status || 'unknown',
+    errorMessage: data.errorMessage || '',
+    isUnassigned: !!data.uid,
+    isError: !!data.error
   };
 
   scanHistory.value.unshift(historyItem);
@@ -132,25 +140,101 @@ function handleCardScanned(data) {
     clearTimeout(hideTimeout);
   }
 
-  if (data.uid) {
+  console.log('Handling card scan data:', data);
+
+  // Handle different response scenarios from your backend
+  if (data.success === false || data.error) {
+    // Error scenarios from backend
+    handleCardError(data);
+  } else if (data.uid && !data.student_name && !data.name) {
     // Unassigned card (only UID available)
-    cardStatus.value = 'Unassigned Card';
-    studentInfo.value.visible = false;
-  } else if (data.student_id) {
-    // Assigned card with student data
-    cardStatus.value = 'Card Detected!';
-    studentInfo.value = {
-      visible: true,
-      name: data.student_name,
-      lunchNumber: data.lunch_number
-    };
+    handleUnassignedCard(data);
+  } else if (data.name || data.student_name) {
+    // Successful lunch retrieval
+    handleSuccessfulScan(data);
+  } else {
+    // Unknown response format
+    handleUnknownResponse(data);
   }
 
   // Add to history
-  addToHistory(data);
+  addToHistory({
+    ...data,
+    status: errorType.value || 'unknown'
+  });
 
-  // Hide info after 10 seconds for BOTH assigned and unassigned cards
-  hideTimeout = setTimeout(resetDisplay, 10000);
+  // Hide info after appropriate time based on status
+  const hideDelay = errorType.value === 'error' ? 15000 : 10000; // Show errors longer
+  hideTimeout = setTimeout(resetDisplay, hideDelay);
+}
+
+function handleCardError(data) {
+  const errorMsg = data.error || data.message || 'Unknown error occurred';
+
+  // Map specific backend errors to user-friendly messages
+  if (errorMsg.includes('card_uid is required')) {
+    cardStatus.value = 'Invalid Card';
+    errorMessage.value = 'Card could not be read properly. Please try again.';
+    errorType.value = 'error';
+  } else if (errorMsg.includes('Student not found')) {
+    cardStatus.value = 'Unregistered Card';
+    errorMessage.value = 'This card is not registered in the system. Please contact the office.';
+    errorType.value = 'warning';
+  } else if (errorMsg.includes('Lunch data not found')) {
+    cardStatus.value = 'No Lunch Assigned';
+    errorMessage.value = 'No lunch has been assigned to this student today.';
+    errorType.value = 'warning';
+  } else {
+    cardStatus.value = 'Error';
+    errorMessage.value = errorMsg;
+    errorType.value = 'error';
+  }
+
+  studentInfo.value = {
+    visible: true,
+    name: '',
+    lunchNumber: null,
+    status: errorType.value
+  };
+}
+
+function handleUnassignedCard(data) {
+  cardStatus.value = 'Unassigned Card';
+  errorMessage.value = 'This card needs to be assigned to a student.';
+  errorType.value = 'warning';
+
+  studentInfo.value = {
+    visible: true,
+    name: 'Unknown Card',
+    lunchNumber: null,
+    status: 'warning'
+  };
+}
+
+function handleSuccessfulScan(data) {
+  cardStatus.value = 'Lunch Retrieved!';
+  errorMessage.value = 'Lunch successfully given to student.';
+  errorType.value = 'success';
+
+  studentInfo.value = {
+    visible: true,
+    name: data.name || data.student_name,
+    lunchNumber: data.lunch_number,
+    status: 'success'
+  };
+}
+
+function handleUnknownResponse(data) {
+  cardStatus.value = 'Unknown Response';
+  errorMessage.value = 'Received unexpected response from server.';
+  errorType.value = 'error';
+
+  studentInfo.value = {
+    visible: true,
+    name: 'Unknown',
+    lunchNumber: null,
+    status: 'error'
+  };
 }
 
 function showPincodeModal(destination) {
@@ -266,20 +350,65 @@ function goToCardAssignment() {
           <!-- Card Status -->
           <div class="card-status">
             <div class="status-content">
+              <!-- Waiting for card -->
               <div v-if="cardStatus === 'Waiting for card...'" class="status-waiting">
                 <i class="bi bi-credit-card-2-front status-icon"></i>
                 <p class="status-text">{{ cardStatus }}</p>
               </div>
 
-              <div v-else-if="cardStatus === 'Unassigned Card'" class="status-unassigned">
-                <i class="bi bi-exclamation-triangle status-icon"></i>
-                <p class="status-text">Unassigned Card</p>
-                <p class="status-subtext">This card is not assigned to any student.</p>
+              <!-- Error States -->
+              <div v-else-if="errorType === 'error'" class="status-error">
+                <i class="bi bi-x-circle-fill status-icon"></i>
+                <p class="status-text">{{ cardStatus }}</p>
+                <p class="status-subtext error-message">{{ errorMessage }}</p>
               </div>
 
-              <div v-else-if="studentInfo.visible" class="student-info-display">
+              <!-- Warning States (unregistered card, no lunch assigned) -->
+              <div v-else-if="errorType === 'warning'" class="status-warning">
+                <i class="bi bi-exclamation-triangle-fill status-icon"></i>
+                <p class="status-text">{{ cardStatus }}</p>
+                <p class="status-subtext warning-message">{{ errorMessage }}</p>
+              </div>
 
-                <!-- Student Information - Main Display -->
+              <!-- Success State -->
+              <div v-else-if="errorType === 'success' && studentInfo.visible" class="status-success">
+                <div class="success-indicator">
+                  <i class="bi bi-check-circle-fill success-icon"></i>
+                  <p class="success-text">{{ cardStatus }}</p>
+                  <p class="success-subtext">{{ errorMessage }}</p>
+                </div>
+
+                <!-- Student Information Display -->
+                <div class="student-card success">
+                  <div class="student-header">
+                    <h2 class="student-name">{{ studentInfo.name }}</h2>
+                  </div>
+
+                  <div class="student-details">
+                    <div class="lunch-status">
+                      <div class="lunch-info has-lunch">
+                        <div class="lunch-icon">
+                          <i class="bi bi-cup-hot-fill"></i>
+                        </div>
+                        <div class="lunch-text">
+                          <span class="lunch-label">Lunch Retrieved</span>
+                          <span class="lunch-number">Lunch #{{ studentInfo.lunchNumber }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Unassigned Card (legacy fallback) -->
+              <div v-else-if="cardStatus === 'Unassigned Card'" class="status-unassigned">
+                <i class="bi bi-question-circle-fill status-icon"></i>
+                <p class="status-text">{{ cardStatus }}</p>
+                <p class="status-subtext">{{ errorMessage || 'This card is not assigned to any student.' }}</p>
+              </div>
+
+              <!-- Legacy student info display (fallback) -->
+              <div v-else-if="studentInfo.visible" class="student-info-display">
                 <div class="student-card">
                   <div class="student-header">
                     <h2 class="student-name">{{ studentInfo.name }}</h2>
@@ -587,6 +716,61 @@ function goToCardAssignment() {
   margin: 0;
 }
 
+/* Error and Warning States */
+.status-error .status-icon {
+  color: var(--error-text);
+}
+
+.status-error .status-text {
+  color: var(--error-text);
+}
+
+.error-message {
+  color: var(--error-text);
+  background: var(--error-bg);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--error-border);
+  margin-top: var(--space-sm);
+}
+
+.status-warning .status-icon {
+  color: var(--warning-text);
+}
+
+.status-warning .status-text {
+  color: var(--warning-text);
+}
+
+.warning-message {
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--warning-border);
+  margin-top: var(--space-sm);
+}
+
+.status-success .status-icon {
+  color: var(--success-text);
+}
+
+.status-success .status-text {
+  color: var(--success-text);
+}
+
+.success-subtext {
+  color: var(--success-text);
+  font-size: var(--font-size-sm);
+  margin: var(--space-xs) 0 0 0;
+  opacity: 0.8;
+}
+
+.student-card.success {
+  border-color: var(--success-border);
+  background: linear-gradient(135deg, var(--success-bg) 0%, var(--bg-card) 100%);
+}
+
 /* Student Display (integrated into card status) */
 .student-display {
   display: flex;
@@ -694,7 +878,7 @@ function goToCardAssignment() {
   font-size: 4rem;
   color: var(--success-text);
   margin-bottom: var(--space-md);
-  filter: drop-shadow(0 2px 8px rgba(34, 197, 94, 0.3));
+  filter: drop-shadow(0 2px 4px rgba(34, 197, 94, 0.3));
 }
 
 .success-text {
@@ -772,7 +956,7 @@ function goToCardAssignment() {
 
 .lunch-info.no-lunch .lunch-icon i {
   color: var(--text-secondary);
-  filter: drop-shadow(0 0, 0.2);
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.2));
 }
 
 .lunch-text {

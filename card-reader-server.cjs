@@ -84,7 +84,7 @@ async function handleCardScan(cardUid) {
       const cardData = {
         student_id: response.id || Date.now(), // Use timestamp as fallback ID if not provided
         student_name: response.name,
-        lunch_number: response.Lunch || response.lunch_number || null
+        lunch_number: response.lunch_number || response.Lunch || null
       };
 
       console.log(`👤 Student found:`, cardData);
@@ -92,23 +92,50 @@ async function handleCardScan(cardUid) {
       return { success: true, student: cardData };
     }
   } catch (error) {
-    console.log(`❓ Student not found for card: ${cardUid} (${error.message})`);
+    console.log(`❌ Backend error for card: ${cardUid} - ${error.message}`);
+
+    // Check if it's a 404 error (student not found or lunch not found)
+    if (error.message.includes('404')) {
+      // Parse the actual error message from backend
+      let errorMessage = 'Student or lunch not found';
+      if (error.message.includes('Student not found')) {
+        errorMessage = 'Student not found for the provided card UID';
+      } else if (error.message.includes('Lunch data not found')) {
+        errorMessage = 'Lunch data not found for the student';
+      }
+
+      const errorData = {
+        success: false,
+        error: errorMessage,
+        card_uid: cardUid
+      };
+
+      console.log(`❌ Sending error to frontend:`, errorData);
+      io.emit('card_scanned', errorData);
+      return errorData;
+    } else if (error.message.includes('400')) {
+      // 400 error - invalid card UID
+      const errorData = {
+        success: false,
+        error: 'card_uid is required',
+        card_uid: cardUid
+      };
+
+      console.log(`❌ Sending card UID error to frontend:`, errorData);
+      io.emit('card_scanned', errorData);
+      return errorData;
+    }
+
+    // For other errors, treat as unassigned card
+    console.log(`❓ Treating as unassigned card due to unexpected error: ${error.message}`);
   }
 
-  // If student not found or backend error, treat as unassigned card
+  // If student not found or other backend error, treat as unassigned card
   const cardData = { uid: cardUid };
   console.log(`❓ Unassigned card:`, cardData);
   io.emit('card_scanned', cardData);
   return { success: true, unassigned: true, uid: cardUid };
 }
-
-// Temporary in-memory storage for development (fallback when backend endpoints don't exist)
-let tempStudents = [
-  { id: 1, name: "John Doe", card_uid: "04A1B2C3D4E5F6", lunch_number: 42 },
-  { id: 2, name: "Jane Smith", card_uid: "04B2C3D4E5F6A1", lunch_number: 15 },
-  { id: 3, name: "Bob Johnson", card_uid: "04C3D4E5F6A1B2", lunch_number: null },
-  { id: 4, name: "Alice Brown", card_uid: "04D4E5F6A1B2C3", lunch_number: 28 }
-];
 
 // REST API endpoints - Forward to your backend
 app.get('/api/students', async (req, res) => {
