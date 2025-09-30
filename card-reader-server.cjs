@@ -73,15 +73,18 @@ async function handleCardScan(cardUid) {
   console.log(`🔍 Processing card scan for UID: ${cardUid}`);
 
   try {
-    // Look up student by card UID in your backend
-    const student = await forwardToBackend(`/api/students/by-card/${cardUid}`);
+    // Look up student by card UID in your backend - send as JSON
+    const response = await forwardToBackend('/lunch', {
+      method: 'POST',
+      body: JSON.stringify({ card_uid: cardUid })
+    });
 
-    if (student) {
-      // Student found - emit card_scanned with student data
+    if (response && response.name) {
+      // Student found - map backend response to frontend format
       const cardData = {
-        student_id: student.id,
-        student_name: student.name,
-        lunch_number: student.lunch_number || null
+        student_id: response.id || Date.now(), // Use timestamp as fallback ID if not provided
+        student_name: response.name,
+        lunch_number: response.Lunch || response.lunch_number || null
       };
 
       console.log(`👤 Student found:`, cardData);
@@ -129,7 +132,7 @@ app.post('/api/assign-card', async (req, res) => {
   }
 
   try {
-    const result = await forwardToBackend('/api/assign-card', {
+    const result = await forwardToBackend('/assign_card', {
       method: 'POST',
       body: JSON.stringify({ student_name, card_uid })
     });
@@ -137,7 +140,7 @@ app.post('/api/assign-card', async (req, res) => {
     console.log(`✅ Card assigned via backend: ${student_name} -> ${card_uid}`);
     res.json(result);
   } catch (error) {
-    console.log('⚠️  Backend /api/assign-card not available, using fallback');
+    console.log('⚠️  Backend /assign_card not available, using fallback');
 
     // Check if card is already assigned in temp storage
     const existingStudent = tempStudents.find(s => s.card_uid === card_uid);
