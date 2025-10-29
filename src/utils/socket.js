@@ -55,12 +55,17 @@ class SocketManager {
     this.socket = null;
     this.connected = false;
     this.pendingRequests = new Map();
+    this.isConnecting = false;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 10;
   }
 
   connect(token = null) {
-    if (this.socket?.connected) {
+    if (this.socket?.connected || this.isConnecting) {
       return this.socket;
     }
+
+    this.isConnecting = true;
 
     const authToken = token || extractJWTFromCookies();
     const auth = authToken ? { token: authToken } : undefined;
@@ -70,7 +75,10 @@ class SocketManager {
       autoConnect: true,
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: this.maxReconnectAttempts,
+      timeout: 5000,
+      transports: ['websocket'],
     });
 
     this.setupEventListeners();
@@ -79,11 +87,22 @@ class SocketManager {
 
   setupEventListeners() {
     this.socket.on('connect', () => {
+      console.log('Socket connected globally');
       this.connected = true;
+      this.isConnecting = false;
+      this.reconnectAttempts = 0;
     });
 
     this.socket.on('disconnect', () => {
+      console.log('Socket disconnected');
       this.connected = false;
+      this.isConnecting = false;
+    });
+
+    this.socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+      this.reconnectAttempts++;
+      this.isConnecting = false;
     });
 
     this.socket.on('error', (error) => {

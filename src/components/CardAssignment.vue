@@ -1,617 +1,713 @@
-<script setup lang="ts">
+<script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { io } from 'socket.io-client';
-import { api } from '../utils/api.js';
+import { useNotifications } from '../composables/useNotifications.js';
+import { api, socketAPI } from '../utils/api.js';
+import { withSocketRetry } from '../composables/useSocketRetry.js';
 
 const router = useRouter();
+const { showError, showSuccess, clearNotification, message, messageType } = useNotifications();
 
-// Reactive data
-const studentName = ref('');
+const students = ref([]);
+const selectedStudent = ref(null);
+const searchQuery = ref('');
+const isLoading = ref(false);
 const cardUid = ref('');
 const cardStatus = ref('Waiting for card...');
-const studentSearch = ref('');
-const students = ref([]);
-const error = ref('');
-const success = ref('');
-const betaBannerVisible = ref(true);
+const isCardScanned = ref(false);
 
-// Socket connection
-let socket = null;
+// Socket connection for card reader
+let cardReaderSocket = null;
 
-onMounted(() => {
-  initializeSocket();
-  fetchStudents();
+// Computed property for filtered students (only those without lunch)
+const filteredStudents = computed(() => {
+  const noLunch = students.value.filter(s => !s.has_card);
+  if (!searchQuery.value) return noLunch;
+  const q = searchQuery.value.toLowerCase();
+  return noLunch.filter(student =>
+      student.full_name.toLowerCase().includes(q)
+  );
+});
+
+// Real-time student updates handler
+const handleStudentUpdates = (data) => {
+  console.log('Real-time students update received:', data);
+  students.value = data.students || [];
+};
+
+onMounted(async () => {
+  // Set up real-time listeners for students
+  socketAPI.onStudentUpdates(handleStudentUpdates);
+
+  // Initialize card reader socket
+  initializeCardReaderSocket();
+
+  // Load students
+  await loadStudents();
 });
 
 onUnmounted(() => {
-  if (socket) {
-    socket.disconnect();
+  // Clean up real-time listeners
+  socketAPI.offStudentUpdates(handleStudentUpdates);
+
+  // Disconnect card reader socket
+  if (cardReaderSocket) {
+    cardReaderSocket.disconnect();
   }
 });
 
-function initializeSocket() {
-  socket = io('http://localhost:3001', {
+function initializeCardReaderSocket() {
+  cardReaderSocket = io('http://localhost:3001', {
     transports: ['websocket'],
     upgrade: false
   });
 
-  socket.on('connect', () => {
-    console.log('Connected to server');
+  cardReaderSocket.on('connect', () => {
+    console.log('Connected to card reader server');
   });
 
-  socket.on('card_scanned', (data) => {
+  cardReaderSocket.on('card_scanned', (data) => {
     if (data.uid) {
       cardStatus.value = `Card Detected! UID: ${data.uid}`;
       cardUid.value = data.uid;
+      isCardScanned.value = true;
+      showSuccess('Card scanned successfully!');
     } else if (data.student_id) {
-      cardStatus.value = 'Card Already Assigned! This card is already assigned to a student.';
+      cardStatus.value = 'Card Already Assigned!';
       cardUid.value = '';
+      isCardScanned.value = false;
+      showError('This card is already assigned to a student.');
     }
   });
 
-  socket.on('disconnect', () => {
-    console.log('Disconnected from server');
+  cardReaderSocket.on('disconnect', () => {
+    console.log('Disconnected from card reader server');
+    cardStatus.value = 'Disconnected from card reader...';
   });
 }
 
-async function fetchStudents() {
+async function loadStudents() {
   try {
-    students.value = await api.getStudents();
-  } catch (err) {
-    console.error('Error fetching students:', err);
+    isLoading.value = true;
+    const data = await withSocketRetry(() => api.getStudents());
+    students.value = data.students || [];
+  } catch (error) {
+    console.error('Error loading students:', error);
+    showError('Failed to load students list.');
+  } finally {
+    isLoading.value = false;
   }
 }
 
 async function assignCard() {
-  if (!studentName.value || !cardUid.value) {
-    error.value = 'Please enter a student name and scan a card';
+  if (!selectedStudent.value) {
+    showError('Please select a student to assign the card to.');
+    return;
+  }
+
+  if (!cardUid.value) {
+    showError('Please scan a card first.');
     return;
   }
 
   try {
-    const result = await api.assignCard({
-      student_name: studentName.value,
+    isLoading.value = true;
+
+    await api.assignCard({
+      student_name: selectedStudent.value.full_name,
       card_uid: cardUid.value
     });
 
-    success.value = result.message || 'Card assigned successfully!';
-    error.value = '';
-    studentName.value = '';
+    showSuccess(`Successfully assigned card to ${selectedStudent.value.full_name}!`);
+
+    // Reset state
+    selectedStudent.value = null;
     cardUid.value = '';
     cardStatus.value = 'Waiting for card...';
-    await fetchStudents();
-  } catch (err) {
-    error.value = err.message || 'Failed to assign card';
-    success.value = '';
-    console.error('Error assigning card:', err);
+    isCardScanned.value = false;
+
+    // Reload students to get updated data
+    await loadStudents();
+  } catch (error) {
+    console.error('Error assigning card:', error);
+    showError(error.message || 'Failed to assign card.');
+  } finally {
+    isLoading.value = false;
   }
 }
 
-async function deleteStudent(studentId: string, studentName: string) {
-  if (!confirm(`Are you sure you want to delete ${studentName}?`)) {
-    return;
-  }
-
-  try {
-    await api.deleteStudent(studentId);
-    success.value = 'Student deleted successfully!';
-    error.value = '';
-    await fetchStudents();
-  } catch (err) {
-    error.value = err.message || 'Failed to delete student';
-    success.value = '';
-    console.error('Error deleting student:', err);
-  }
-}
-
-const filteredStudents = computed(() => {
-  if (!studentSearch.value) {
-    // Filter out any students with missing required properties
-    return students.value.filter(student =>
-      student &&
-      student.name &&
-      student.card_uid &&
-      student.id
-    );
-  }
-
-  return students.value.filter(student =>
-    student &&
-    student.name &&
-    student.card_uid &&
-    student.id &&
-    student.name.toLowerCase().includes(studentSearch.value.toLowerCase())
-  );
-});
-
-const isAssignButtonDisabled = computed(() => {
-  return !studentName.value || !cardUid.value;
-});
-
-function navigateToAdmin() {
+function goBack() {
   router.push('/admin');
-}
-
-function hideBetaBanner() {
-  betaBannerVisible.value = false;
 }
 </script>
 
 <template>
-  <div class="card-assignment">
+  <main class="card-assignment-main">
+    <div class="card-assignment-container">
+      <div class="card-assignment-card fade-in">
+        <div class="card-assignment-header">
+          <button class="back-btn" @click="goBack">
+            <svg class="back-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Admin
+          </button>
 
-    <!-- Header -->
-    <header class="assignment-header">
-      <div class="header-container">
-        <h1 class="page-title">Assign NFC Card to Student</h1>
-        <button @click="navigateToAdmin" class="btn btn-secondary">
-          <i class="bi bi-arrow-left"></i>
-          Back to Admin
-        </button>
-      </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="assignment-main">
-      <div class="assignment-container">
-        <!-- Error message -->
-        <div v-if="error" class="alert alert-error">
-          <i class="bi bi-exclamation-triangle"></i>
-          {{ error }}
+          <h1 class="card-assignment-title">Assign NFC Card</h1>
+          <p class="card-assignment-subtitle">Select a student and scan their card</p>
         </div>
 
-        <!-- Success message -->
-        <div v-if="success" class="alert alert-success">
-          <i class="bi bi-check-circle"></i>
-          {{ success }}
-        </div>
-
-        <!-- Assignment Form Card -->
-        <div class="card assignment-card">
-          <!-- Instructions -->
-          <div class="instructions-section">
-            <h2 class="section-title">Instructions</h2>
-            <ol class="instructions-list">
-              <li>Enter the student's name</li>
-              <li>Place the NFC card on the reader</li>
-              <li>Click "Assign Card" to save the assignment</li>
-            </ol>
+        <div class="card-assignment-content">
+          <!-- Message display -->
+          <div v-if="message" class="alert" :class="`alert-${messageType}`" @click="clearNotification">
+            {{ message }}
+            <span class="alert-close">×</span>
           </div>
 
-          <!-- Card Status -->
-          <div class="status-section">
-            <div class="status-card" :class="{
-              'status-success': cardUid,
+          <!-- Card Status Section -->
+          <div class="card-status-section">
+            <div class="card-status-card" :class="{
+              'status-success': isCardScanned,
               'status-warning': cardStatus.includes('Already Assigned'),
-              'status-waiting': !cardUid && !cardStatus.includes('Already Assigned')
+              'status-waiting': !isCardScanned && !cardStatus.includes('Already Assigned')
             }">
               <i class="status-icon" :class="{
-                'bi bi-check-circle': cardUid,
-                'bi bi-exclamation-triangle': cardStatus.includes('Already Assigned'),
-                'bi bi-clock': !cardUid && !cardStatus.includes('Already Assigned')
+                'bi bi-check-circle-fill': isCardScanned,
+                'bi bi-exclamation-triangle-fill': cardStatus.includes('Already Assigned'),
+                'bi bi-card-heading': !isCardScanned && !cardStatus.includes('Already Assigned')
               }"></i>
-              <p class="status-text">{{ cardStatus }}</p>
+              <div class="status-info">
+                <h3 class="status-title">{{ isCardScanned ? 'Card Ready' : 'Scan Card' }}</h3>
+                <p class="status-text">{{ cardStatus }}</p>
+              </div>
             </div>
           </div>
 
-          <!-- Assignment Form -->
-          <form @submit.prevent="assignCard" class="assignment-form">
-            <div class="form-group">
-              <label for="student_name" class="form-label">Student Name</label>
+          <!-- Search bar -->
+          <div class="search-section">
+            <div class="search-wrapper">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="M21 21l-4.35-4.35"/>
+              </svg>
               <input
+                v-model="searchQuery"
                 type="text"
-                id="student_name"
-                v-model="studentName"
-                required
-                class="form-input"
-                placeholder="Enter student's full name"
-              >
-            </div>
-
-            <button
-              type="submit"
-              :disabled="isAssignButtonDisabled"
-              class="btn btn-primary submit-btn"
-            >
-              <i class="bi bi-person-plus"></i>
-              Assign Card
-            </button>
-          </form>
-        </div>
-
-        <!-- Students List Card -->
-        <div class="card students-card">
-          <div class="card-header">
-            <h2 class="section-title">Recent Assignments</h2>
-            <div class="search-container">
-              <input
-                type="text"
-                v-model="studentSearch"
-                placeholder="Search by name..."
-                class="form-input search-input"
-              >
-              <i class="bi bi-search search-icon"></i>
+                placeholder="Search for a student..."
+                class="search-input"
+              />
             </div>
           </div>
 
-          <div class="students-table-container">
-            <table class="students-table">
-              <thead>
-                <tr>
-                  <th>Student Name</th>
-                  <th>Card ID</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
+          <!-- Students list -->
+          <div class="students-section">
+            <div v-if="isLoading" class="loading-state">
+              <div class="spinner"></div>
+              <p>Loading students...</p>
+            </div>
+
+            <div v-else-if="filteredStudents.length === 0" class="no-results">
+              <div class="no-results-icon">👥</div>
+              <h3>No students found</h3>
+              <p v-if="searchQuery">Try a different search term</p>
+              <p v-else>No students available at the moment</p>
+            </div>
+
+            <div v-else class="student-list">
+              <h3 class="list-title">Select Student ({{ filteredStudents.length }})</h3>
+              <div class="student-grid">
+                <div
                   v-for="student in filteredStudents"
                   :key="student.id"
-                  class="student-row"
+                  class="student-card"
+                  :class="{ selected: selectedStudent && selectedStudent.id === student.id }"
+                  @click="selectedStudent = student"
                 >
-                  <td class="student-name">{{ student.name }}</td>
-                  <td class="student-card">{{ student.card_uid?.substring(0, 8) }}...</td>
-                  <td class="student-actions">
-                    <button
-                      @click="deleteStudent(student.id, student.name)"
-                      class="btn btn-danger btn-sm"
-                      title="Delete student"
-                    >
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="filteredStudents.length === 0">
-                  <td colspan="3" class="no-students">
-                    {{ studentSearch ? 'No students found matching your search.' : 'No students assigned yet.' }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  <div class="student-avatar">
+                    <img v-if="student.picture" :src="student.picture" alt="Profile" class="avatar-img" />
+                    <span v-else>
+                      {{ student.full_name.charAt(0).toUpperCase() }}
+                    </span>
+                  </div>
+                  <div class="student-info">
+                    <h4 class="student-name">{{ student.full_name }}</h4>
+                    <p class="student-status">{{ student.card_id ? 'Card Assigned' : 'No Card' }}</p>
+                  </div>
+                  <div v-if="selectedStudent && selectedStudent.id === student.id" class="selected-indicator">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <polyline points="20,6 9,17 4,12"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+
+        <!-- Assign button -->
+        <div class="card-assignment-footer">
+          <button
+            @click="assignCard"
+            :disabled="!selectedStudent || !isCardScanned || isLoading"
+            class="btn btn-primary assign-btn"
+          >
+            <svg v-if="isLoading" class="btn-icon spinner" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/>
+            </svg>
+            <i v-else class="bi bi-card-heading btn-icon"></i>
+            {{ isLoading ? 'Assigning...' : 'Assign Card' }}
+          </button>
+          <p class="assign-disclaimer">
+            This will assign the scanned card to the selected student
+          </p>
+        </div>
       </div>
-    </main>
-  </div>
+    </div>
+  </main>
 </template>
 
 <style scoped>
-.card-assignment {
-  min-height: 100vh;
-  background: transparent;
-}
-
-/* Header */
-.assignment-header {
-  background: var(--brand-primary);
-  border-bottom: 1px solid var(--border-primary);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(10px);
-  margin-bottom: var(--space-xl);
-  color: white;
-}
-
-.header-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--space-lg) var(--space-md);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.page-title {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  color: white;
-  margin: 0;
-}
-
-/* Main Content */
-.assignment-main {
+.card-assignment-main {
   flex: 1;
-  padding: 0 var(--space-md) var(--space-xl);
-}
-
-.assignment-container {
-  max-width: 800px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xl);
-}
-
-/* Alert Styles */
-.alert {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  border-radius: var(--radius-lg);
-  font-weight: var(--font-weight-medium);
-  border: 1px solid;
-}
-
-.alert-error {
-  background: var(--error-bg);
-  border-color: var(--error-border);
-  color: var(--error-text);
-}
-
-.alert-success {
-  background: var(--success-bg);
-  border-color: var(--success-border);
-  color: var(--success-text);
-}
-
-/* Card Styles */
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(10px);
-  overflow: hidden;
-}
-
-.assignment-card {
-  padding: var(--space-2xl);
-}
-
-.students-card {
-  padding: 0;
-}
-
-.card-header {
-  padding: var(--space-xl) var(--space-xl) var(--space-lg);
-  border-bottom: 1px solid var(--border-primary);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-lg);
-}
-
-/* Instructions */
-.instructions-section {
-  margin-bottom: var(--space-xl);
-}
-
-.section-title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin-bottom: var(--space-md);
-}
-
-.instructions-list {
-  list-style: decimal;
-  margin-left: var(--space-lg);
-  color: var(--text-secondary);
-  line-height: var(--line-height-relaxed);
-}
-
-.instructions-list li {
-  margin-bottom: var(--space-xs);
-}
-
-/* Status Section */
-.status-section {
-  margin-bottom: var(--space-xl);
-}
-
-.status-card {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
   padding: var(--space-lg);
-  border-radius: var(--radius-lg);
-  border: 2px solid;
+  min-height: calc(100vh - 160px);
+}
+
+.card-assignment-container {
+  width: 100%;
+  max-width: 700px;
+  position: relative;
+}
+
+.card-assignment-card {
+  background: rgba(255,255,255,0.85);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
   transition: all var(--transition-normal);
 }
 
-.status-waiting {
-  background: var(--bg-tertiary);
-  border-color: var(--border-secondary);
+[data-theme="dark"] .card-assignment-card {
+  background: rgba(32,32,32,0.85);
+}
+
+.card-assignment-header {
+  padding: var(--space-2xl);
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+  border-bottom: 1px solid var(--border-primary);
+  text-align: center;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: transparent;
+  border: none;
   color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  padding: var(--space-sm) 0;
+  margin-bottom: var(--space-lg);
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
 }
 
-.status-success {
-  background: var(--success-bg);
-  border-color: var(--success-border);
-  color: var(--success-text);
+.back-btn:hover {
+  color: var(--brand-primary);
 }
 
-.status-warning {
-  background: var(--warning-bg);
-  border-color: var(--warning-border);
-  color: var(--warning-text);
+.back-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
 }
 
-.status-icon {
+.card-assignment-title {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+  letter-spacing: -0.02em;
+}
+
+.card-assignment-subtitle {
   font-size: var(--font-size-lg);
-}
-
-.status-text {
-  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
   margin: 0;
 }
 
-/* Form Styles */
-.assignment-form {
+.card-assignment-content {
+  padding: var(--space-2xl);
+}
+
+/* Card Status Section */
+.card-status-section {
+  margin-bottom: var(--space-2xl);
+}
+
+.card-status-card {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: var(--space-lg);
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.form-label {
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-}
-
-.form-input {
-  padding: var(--space-md);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
-  font-size: var(--font-size-base);
+  padding: var(--space-xl);
   background: var(--bg-secondary);
-  color: var(--text-primary);
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-lg);
   transition: all var(--transition-fast);
 }
 
-.form-input:focus {
-  outline: none;
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(229, 20, 246, 0.1);
+.card-status-card.status-success {
+  border-color: var(--success-border);
+  background: var(--success-bg);
 }
 
-.submit-btn {
-  align-self: stretch;
-  padding: var(--space-lg);
+.card-status-card.status-warning {
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+}
+
+.card-status-card.status-waiting {
+  border-color: var(--border-secondary);
+}
+
+.status-icon {
+  font-size: 2.5rem;
+  flex-shrink: 0;
+}
+
+.status-success .status-icon {
+  color: var(--success-text);
+}
+
+.status-warning .status-icon {
+  color: var(--warning-text);
+}
+
+.status-waiting .status-icon {
+  color: var(--text-tertiary);
+}
+
+.status-info {
+  flex: 1;
+}
+
+.status-title {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-xs) 0;
 }
 
-/* Search */
-.search-container {
+.status-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Search Section */
+.search-section {
+  margin-bottom: var(--space-2xl);
+}
+
+.search-wrapper {
   position: relative;
-  flex: 1;
-  max-width: 300px;
-}
-
-.search-input {
-  padding-right: var(--space-3xl);
 }
 
 .search-icon {
   position: absolute;
-  right: var(--space-md);
+  left: var(--space-md);
   top: 50%;
   transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
   color: var(--text-tertiary);
-  pointer-events: none;
+  stroke-width: 2;
 }
 
-/* Table Styles */
-.students-table-container {
+.search-input {
+  width: 100%;
+  padding: var(--space-md) var(--space-md) var(--space-md) var(--space-3xl);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(66, 184, 131, 0.1);
+}
+
+/* Students Section */
+.students-section {
+  margin-bottom: var(--space-xl);
+}
+
+.loading-state {
+  text-align: center;
+  padding: var(--space-3xl);
+  color: var(--text-secondary);
+}
+
+.loading-state .spinner {
+  margin: 0 auto var(--space-md);
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--border-primary);
+  border-top-color: var(--brand-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.no-results {
+  text-align: center;
+  padding: var(--space-3xl);
+}
+
+.no-results-icon {
+  font-size: 4rem;
+  margin-bottom: var(--space-lg);
+}
+
+.no-results h3 {
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.no-results p {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.list-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-lg);
+}
+
+.student-grid {
+  display: grid;
+  gap: var(--space-md);
   max-height: 400px;
   overflow-y: auto;
 }
 
-.students-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.students-table th {
-  background: var(--bg-tertiary);
-  padding: var(--space-md) var(--space-xl);
-  text-align: left;
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  border-bottom: 1px solid var(--border-primary);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.student-row {
-  transition: background-color var(--transition-fast);
-}
-
-.student-row:hover {
+.student-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
   background: var(--bg-secondary);
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
 }
 
-.students-table td {
-  padding: var(--space-md) var(--space-xl);
-  border-bottom: 1px solid var(--border-primary);
+.student-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--brand-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.student-card.selected {
+  border-color: var(--brand-primary);
+  background-color: #42b883;
+  color: var(--text-inverse);
+}
+
+.student-card.selected .student-name,
+.student-card.selected .student-status {
+  color: var(--text-inverse);
+}
+
+.student-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: var(--brand-primary);
+  color: var(--text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+  flex-shrink: 0;
+}
+
+.student-card.selected .student-avatar {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-full);
+  display: block;
+}
+
+.student-info {
+  flex: 1;
 }
 
 .student-name {
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
+  margin: 0 0 var(--space-xs) 0;
 }
 
-.student-card {
-  font-family: monospace;
+.student-status {
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  margin: 0;
 }
 
-.student-actions {
-  text-align: center;
+.selected-indicator {
+  width: 24px;
+  height: 24px;
+  color: var(--text-inverse);
+  flex-shrink: 0;
 }
 
-.no-students {
-  text-align: center;
-  color: var(--text-tertiary);
-  font-style: italic;
-  padding: var(--space-xl);
+.selected-indicator svg {
+  width: 100%;
+  height: 100%;
+  stroke-width: 3;
 }
 
-/* Button variants */
-.btn-sm {
-  padding: var(--space-sm);
-  font-size: var(--font-size-sm);
+/* Alert */
+.alert {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all var(--transition-fast);
 }
 
-.btn-danger {
+.alert:hover {
+  opacity: 0.9;
+}
+
+.alert-success {
+  background: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success-border);
+}
+
+.alert-error {
   background: var(--error-bg);
   color: var(--error-text);
   border: 1px solid var(--error-border);
 }
 
-.btn-danger:hover {
-  background: var(--error-text);
-  color: var(--text-inverse);
+.alert-close {
+  font-size: 1.5rem;
+  font-weight: bold;
+  opacity: 0.5;
+  margin-left: var(--space-md);
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .card-assignment {
-    padding-top: var(--space-lg);
+/* Footer */
+.card-assignment-footer {
+  padding: var(--space-xl) var(--space-2xl);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-primary);
+  text-align: center;
+}
+
+.assign-btn {
+  width: 100%;
+  max-width: 300px;
+  margin-bottom: var(--space-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.btn-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.assign-disclaimer {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .card-assignment-main {
+    padding: var(--space-md);
   }
 
-  .header-container {
-    flex-direction: column;
-    gap: var(--space-md);
-    text-align: center;
+  .card-assignment-header,
+  .card-assignment-content,
+  .card-assignment-footer {
+    padding: var(--space-lg);
   }
 
-  .page-title {
-    font-size: var(--font-size-xl);
-  }
-
-  .assignment-card {
-    padding: var(--space-xl);
-  }
-
-  .card-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .search-container {
-    max-width: none;
-  }
-
-  .students-table th,
-  .students-table td {
-    padding: var(--space-sm) var(--space-md);
+  .card-assignment-title {
+    font-size: var(--font-size-2xl);
   }
 
   .student-card {
-    display: none;
+    padding: var(--space-md);
+  }
+
+  .student-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: var(--font-size-base);
+  }
+
+  .card-status-card {
+    padding: var(--space-lg);
+  }
+
+  .status-icon {
+    font-size: 2rem;
+  }
+}
+
+/* Fade-in animation */
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>
+

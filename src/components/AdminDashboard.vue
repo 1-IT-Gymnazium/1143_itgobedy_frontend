@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
 import { api, socketAPI } from '@/utils/api';
 import { useNotifications } from '@/composables/useNotifications';
+import { withSocketRetry } from '@/composables/useSocketRetry';
 
 const { showError } = useNotifications();
 
@@ -116,11 +117,11 @@ async function fetchDashboardData() {
   try {
     isLoading.value = true;
 
-    // Fetch all data in parallel using socket connections
+    // Fetch all data in parallel using socket connections with retry
     const [poolResponse, usersResponse, recent] = await Promise.all([
-      api.getLunches().catch(() => ({ "lunch 1": 0, "lunch 2": 0, "lunch 3": 0 })),
-      api.getAllStudents().catch(() => ({ users: [] })),
-      api.getRecentLunches().catch(() => ({ recent_lunches: [] }))
+      withSocketRetry(() => api.getLunches()).catch(() => ({ "lunch 1": 0, "lunch 2": 0, "lunch 3": 0 })),
+      withSocketRetry(() => api.getAllStudents()).catch(() => ({ users: [] })),
+      withSocketRetry(() => api.getRecentLunches()).catch(() => ({ recent_lunches: [] }))
     ]);
 
     console.log(usersResponse);

@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { api, socketAPI } from '../utils/api.js';
+import { withSocketRetry } from '../composables/useSocketRetry.js';
 
 const router = useRouter();
 const { user, requireAuth, logout } = useAuth();
@@ -42,32 +43,18 @@ const handleUserInfoUpdate = (userData) => {
 };
 
 // Function to load user info with retry logic
-const loadUserInfo = async (retryCount = 0) => {
-  const maxRetries = 5;
-
+const loadUserInfo = async () => {
   try {
-    // Check if socket is connected
-    if (!socketAPI.isConnected() && retryCount < maxRetries) {
-      // Wait a bit and retry
-      setTimeout(() => loadUserInfo(retryCount + 1), 500);
-      return;
-    }
-
-    // Get initial user info via socket
-    const userData = await api.getUserInfo();
+    // Get initial user info via socket with retry
+    const userData = await withSocketRetry(() => api.getUserInfo());
     handleUserInfoUpdate(userData);
-
   } catch (error) {
-    if (retryCount < maxRetries) {
-      // Retry after a delay
-      setTimeout(() => loadUserInfo(retryCount + 1), 1000);
-    } else {
-      // Final fallback - use localStorage data
-      const storedLunchNumber = localStorage.getItem('lunchNumber');
-      if (storedLunchNumber) {
-        hasLunchToday.value = true;
-        lunchNumber.value = storedLunchNumber;
-      }
+    console.error('Error loading user info:', error);
+    // Final fallback - use localStorage data
+    const storedLunchNumber = localStorage.getItem('lunchNumber');
+    if (storedLunchNumber) {
+      hasLunchToday.value = true;
+      lunchNumber.value = storedLunchNumber;
     }
   }
 };

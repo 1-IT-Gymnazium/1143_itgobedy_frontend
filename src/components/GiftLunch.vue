@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { useNotifications } from '../composables/useNotifications.js';
 import { api, socketAPI } from '../utils/api.js';
+import { withSocketRetry } from '../composables/useSocketRetry.js';
 
 const router = useRouter();
 const { requireAuth } = useAuth();
@@ -15,11 +16,13 @@ const searchQuery = ref('');
 const isLoading = ref(false);
 const userHasLunch = ref(false);
 
-// Computed property for filtered students
+// Computed property for filtered students (only those without lunch)
 const filteredStudents = computed(() => {
-  if (!searchQuery.value) return students.value;
-  return students.value.filter(student =>
-    student.full_name.toLowerCase().includes(searchQuery.value.toLowerCase())
+  const noLunch = students.value.filter(s => !s.has_lunch);
+  if (!searchQuery.value) return noLunch;
+  const q = searchQuery.value.toLowerCase();
+  return noLunch.filter(student =>
+    student.full_name.toLowerCase().includes(q)
   );
 });
 
@@ -61,7 +64,7 @@ onUnmounted(() => {
 
 async function checkUserLunchStatus() {
   try {
-    const userData = await api.getUserInfo();
+    const userData = await withSocketRetry(() => api.getUserInfo());
     userHasLunch.value = userData.lunch?.hasLunch || false;
 
     if (!userHasLunch.value) {
@@ -76,7 +79,7 @@ async function checkUserLunchStatus() {
 async function loadStudents() {
   try {
     isLoading.value = true;
-    const data = await api.getStudents(); // Now uses socket connection
+    const data = await withSocketRetry(() => api.getStudents());
     students.value = data.students || [];
   } catch (error) {
     console.error('Error loading students:', error);

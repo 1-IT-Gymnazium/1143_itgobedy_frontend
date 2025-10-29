@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth.js';
 import { useNotifications } from '../composables/useNotifications.js';
 import { api, apiRequest, socketAPI } from '../utils/api.js';
+import { withSocketRetry } from '../composables/useSocketRetry.js';
 
 const router = useRouter();
 const { requireAuth } = useAuth();
@@ -57,9 +58,10 @@ onUnmounted(() => {
 
 async function fetchUserLunch() {
   try {
-    const userData = await api.getUserInfo();
+    const userData = await withSocketRetry(() => api.getUserInfo());
     userHasLunch.value = userData.lunch?.hasLunch || false;
   } catch (error) {
+    console.error('Error fetching user lunch:', error);
     userHasLunch.value = false;
   }
 }
@@ -67,15 +69,16 @@ async function fetchUserLunch() {
 async function fetchPool() {
   try {
     isLoading.value = true;
-    const data = await api.getLunches(); // Now uses socket connection
+    const data = await withSocketRetry(() => api.getLunches());
     pool.value = {
       1: data["lunch 1"] || 0,
       2: data["lunch 2"] || 0,
       3: data["lunch 3"] || 0
     };
-    isLoading.value = false;
   } catch (error) {
+    console.error('Error fetching pool:', error);
     showError('Failed to load lunch pool.');
+  } finally {
     isLoading.value = false;
   }
 }
