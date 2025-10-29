@@ -10,22 +10,23 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: ["http://localhost:5173", "http://127.0.0.1:5000", "http://localhost:5174"],
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true
   }
 });
 
 app.use(cors({
   origin: ["http://localhost:5173", "http://127.0.0.1:5000", "http://localhost:5174"],
-  methods: ["GET", "POST"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true
 }));
 app.use(express.json());
 
+// Backend API configuration - adjust this to your actual backend URL
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:5000'; // Flask typically runs on 5000
+
 // Track connected clients
 let connectedClients = 0;
-let lastScannedCard = null;
-let lastScannedTime = null;
 
 io.on('connection', (socket) => {
   connectedClients++;
@@ -34,87 +35,269 @@ io.on('connection', (socket) => {
   // Send initial reader status
   socket.emit('reader_status', { connected: true, ready: true });
 
-  // If there was a recent card scan, send it to the newly connected client
-  if (lastScannedCard && lastScannedTime && (Date.now() - lastScannedTime < 5000)) {
-    console.log(`📤 Sending recent card scan to new client: ${lastScannedCard}`);
-    socket.emit('card_scanned', { uid: lastScannedCard });
-  }
-
   socket.on('disconnect', () => {
     connectedClients--;
     console.log(`❌ Client disconnected. Total clients: ${connectedClients}`);
   });
 });
 
-// Simple function to broadcast card UID to all connected clients
-function broadcastCardUID(cardUid) {
-  console.log(`📡 Broadcasting card UID to ${connectedClients} client(s): ${cardUid}`);
+// Helper function to forward requests to your backend
+async function forwardToBackend(endpoint, options = {}) {
+  const url = `${BACKEND_API_URL}${endpoint}`;
 
-  // Store the last scanned card for new connections
-  lastScannedCard = cardUid;
-  lastScannedTime = Date.now();
+  try {
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+      }
+    });
 
-  // Broadcast to all connected clients
-  io.emit('card_scanned', { uid: cardUid });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Backend API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
 
-  return { success: true, uid: cardUid, clients: connectedClients };
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error(`❌ Backend API error for ${endpoint}:`, error.message);
+    throw error;
+  }
 }
 
-// Endpoint for card reader Python script to send card UIDs
-app.post('/api/card-scan', (req, res) => {
+// Function to handle card scanning with backend integration
+async function handleCardScan(cardUid) {
+  console.log(`🔍 Processing card scan for UID: ${cardUid}`);
+
+  try {
+    // Look up student by card UID in your backend - send as JSON
+    const response = await forwardToBackend('/lunch', {
+      method: 'POST',
+      body: JSON.stringify({ card_uid: cardUid })
+    });
+
+    if (response && response.name) {
+      // Student found - map backend response to frontend format
+      const cardData = {
+        student_id: response.id || Date.now(), // Use timestamp as fallback ID if not provided
+        student_name: response.name,
+        lunch_number: response.lunch_number || response.Lunch || null
+      };
+
+      console.log(`👤 Student found:`, cardData);
+      io.emit('card_scanned', cardData);
+      return { success: true, student: cardData };
+    }
+  } catch (error) {
+    console.log(`❌ Backend error for card: ${cardUid} - ${error.message}`);
+
+    // Check if it's a 404 error (student not found or lunch not found)
+    if (error.message.includes('404')) {
+      // Parse the actual error message from backend
+      let errorMessage = 'Student or lunch not found';
+      if (error.message.includes('Student not found')) {
+        errorMessage = 'Student not found for the provided card UID';
+      } else if (error.message.includes('Lunch data not found')) {
+        errorMessage = 'Lunch data not found for the student';
+      }
+
+      const errorData = {
+        success: false,
+        error: errorMessage,
+        card_uid: cardUid
+      };
+
+      console.log(`❌ Sending error to frontend:`, errorData);
+      io.emit('card_scanned', errorData);
+      return errorData;
+    } else if (error.message.includes('400')) {
+      // 400 error - invalid card UID
+      const errorData = {
+        success: false,
+        error: 'card_uid is required',
+        card_uid: cardUid
+      };
+
+      console.log(`❌ Sending card UID error to frontend:`, errorData);
+      io.emit('card_scanned', errorData);
+      return errorData;
+    }
+
+    // For other errors, treat as unassigned card
+    console.log(`❓ Treating as unassigned card due to unexpected error: ${error.message}`);
+  }
+
+  // If student not found or other backend error, treat as unassigned card
+  const cardData = { uid: cardUid };
+  console.log(`❓ Unassigned card:`, cardData);
+  io.emit('card_scanned', cardData);
+  return { success: true, unassigned: true, uid: cardUid };
+}
+
+// REST API endpoints - Forward to your backend
+app.get('/api/students', async (req, res) => {
+  try {
+    const students = await forwardToBackend('/api/students');
+    res.json(students);
+  } catch (error) {
+    console.log('⚠️  Backend /api/students not available, using fallback data');
+    res.json(tempStudents);
+  }
+});
+
+// Assign card to student endpoint - Forward to your backend
+app.post('/api/assign-card', async (req, res) => {
+  const { student_name, card_uid } = req.body;
+
+  if (!student_name || !card_uid) {
+    return res.status(400).json({
+      error: 'Both student_name and card_uid are required'
+    });
+  }
+
+  try {
+    const result = await forwardToBackend('/assign_card', {
+      method: 'POST',
+      body: JSON.stringify({ student_name, card_uid })
+    });
+
+    console.log(`✅ Card assigned via backend: ${student_name} -> ${card_uid}`);
+    res.json(result);
+  } catch (error) {
+    console.log('⚠️  Backend /assign_card not available, using fallback');
+
+    // Check if card is already assigned in temp storage
+    const existingStudent = tempStudents.find(s => s.card_uid === card_uid);
+    if (existingStudent) {
+      return res.status(400).json({
+        error: `Card is already assigned to ${existingStudent.name}`
+      });
+    }
+
+    // Create new student in temp storage
+    const newId = Math.max(...tempStudents.map(s => s.id)) + 1;
+    const newStudent = {
+      id: newId,
+      name: student_name,
+      card_uid: card_uid,
+      lunch_number: null
+    };
+
+    tempStudents.push(newStudent);
+
+    console.log(`✅ Card assigned (fallback): ${student_name} -> ${card_uid}`);
+    res.json({
+      success: true,
+      message: 'Card assigned successfully (using fallback storage)',
+      student: newStudent
+    });
+  }
+});
+
+// Delete student endpoint - Forward to your backend
+app.delete('/api/students/:id', async (req, res) => {
+  const studentId = req.params.id;
+
+  if (!studentId || isNaN(parseInt(studentId))) {
+    return res.status(400).json({ error: 'Invalid student ID' });
+  }
+
+  try {
+    const result = await forwardToBackend(`/api/students/${studentId}`, {
+      method: 'DELETE'
+    });
+
+    console.log(`🗑️ Student deleted via backend (ID: ${studentId})`);
+    res.json(result);
+  } catch (error) {
+    console.log('⚠️  Backend delete endpoint not available, using fallback');
+
+    const studentIndex = tempStudents.findIndex(s => s.id === parseInt(studentId));
+
+    if (studentIndex === -1) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const deletedStudent = tempStudents.splice(studentIndex, 1)[0];
+
+    console.log(`🗑️ Student deleted (fallback): ${deletedStudent.name} (ID: ${studentId})`);
+    res.json({
+      success: true,
+      message: 'Student deleted successfully (using fallback storage)',
+      student: deletedStudent
+    });
+  }
+});
+
+// Endpoint for your Flask backend to send card scan data
+app.post('/api/card-scan', async (req, res) => {
   const { card_uid } = req.body;
 
   if (!card_uid) {
     return res.status(400).json({ error: 'card_uid is required' });
   }
 
-  console.log(`📇 Card scanned: ${card_uid}`);
-  const result = broadcastCardUID(card_uid);
+  console.log(`📡 Received card scan from Flask backend: ${card_uid}`);
+  const result = await handleCardScan(card_uid);
   res.json(result);
 });
 
-// Manual test endpoint for simulating card scans
-app.post('/api/simulate-scan', (req, res) => {
+// Manual test endpoint
+app.post('/api/simulate-scan', async (req, res) => {
   const { card_uid } = req.body;
 
   if (!card_uid) {
     return res.status(400).json({ error: 'card_uid is required' });
   }
 
-  console.log(`🧪 Simulated card scan: ${card_uid}`);
-  const result = broadcastCardUID(card_uid);
+  console.log(`🧪 Manual test scan: ${card_uid}`);
+  const result = await handleCardScan(card_uid);
   res.json(result);
 });
 
-// Status endpoint
-app.get('/api/status', (req, res) => {
+// Health check endpoint
+app.get('/api/health', async (req, res) => {
   res.json({
-    status: 'running',
-    connectedClients,
-    lastScannedCard,
-    lastScannedTime: lastScannedTime ? new Date(lastScannedTime).toISOString() : null
+    status: 'healthy',
+    backend: 'proxy-mode',
+    clients: connectedClients,
+    timestamp: new Date().toISOString(),
+    note: 'Health check does not test backend - operating in proxy mode'
   });
 });
 
-// Start server
 const PORT = process.env.PORT || 3001;
+
 server.listen(PORT, () => {
-  console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   🎴  CARD READER SERVER - SIMPLE UID BROADCASTER  🎴    ║
-║                                                           ║
-║   Server running on: http://localhost:${PORT}              ║
-║   Socket.IO ready for connections                        ║
-║                                                           ║
-║   Endpoints:                                              ║
-║   POST /api/card-scan      - Receive card UID            ║
-║   POST /api/simulate-scan  - Test card scanning          ║
-║   GET  /api/status         - Server status               ║
-║                                                           ║
-║   This server ONLY broadcasts card UIDs.                 ║
-║   Frontend handles all API calls to backend.             ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
-  `);
+  console.log(`🚀 Card Reader Server running on port ${PORT}`);
+  console.log(`🔌 Socket.IO server ready for connections`);
+  console.log(`🌐 REST API available at http://localhost:${PORT}`);
+  console.log(`🔗 Backend API: ${BACKEND_API_URL}`);
+  console.log(`📡 Waiting for card scans...`);
+  console.log(`\n📋 API Endpoints:`);
+  console.log(`   GET  /api/students - List all students (proxied to backend)`);
+  console.log(`   POST /api/assign-card - Assign card to student (proxied to backend)`);
+  console.log(`   DELETE /api/students/:id - Delete student (proxied to backend)`);
+  console.log(`   POST /api/card-scan - For Flask backend integration`);
+  console.log(`   POST /api/simulate-scan - For manual testing`);
+  console.log(`   GET  /api/health - Health check\n`);
 });
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n🛑 Shutting down card reader server...');
+  server.close(() => {
+    console.log('✅ Server closed.');
+    process.exit(0);
+  });
+});
+
+// Test backend connection on startup - make it non-blocking
+setTimeout(async () => {
+  console.log('✅ Card Reader Server: Ready to proxy requests to backend');
+  console.log('   Backend URL:', BACKEND_API_URL);
+  console.log('   Note: Backend connection will be tested when requests are made');
+}, 2000);

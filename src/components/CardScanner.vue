@@ -142,117 +142,13 @@ function handleCardScanned(data) {
 
   console.log('Handling card scan data:', data);
 
-  // Card reader now ONLY sends UID, frontend handles the rest
-  if (data.uid) {
-    handleCardUID(data.uid);
-  } else {
-    console.error('No UID received from card reader');
-    cardStatus.value = 'Error: No card UID';
-  }
-}
-
-// New function to handle UID and call backend API
-async function handleCardUID(cardUid) {
-  try {
-    cardStatus.value = `Processing card ${cardUid.substring(0, 8)}...`;
-
-    // Call backend /lunch endpoint to get student and lunch info
-    const response = await fetch('http://localhost:5000/lunch', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({ card_uid: cardUid })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-
-    const lunchData = await response.json();
-
-    // Successfully retrieved lunch data
-    handleSuccessfulLunch(lunchData, cardUid);
-
-  } catch (error) {
-    console.error('Error fetching lunch data:', error);
-    handleLunchError(error.message, cardUid);
-  }
-}
-
-function handleSuccessfulLunch(lunchData, cardUid) {
-  const { name, lunch_number } = lunchData;
-
-  studentInfo.value = {
-    visible: true,
-    name: name || 'Unknown',
-    lunchNumber: lunch_number || 'N/A',
-    status: 'success'
-  };
-
-  cardStatus.value = `✅ Lunch retrieved for ${name}`;
-  errorType.value = 'success';
-  errorMessage.value = `Lunch #${lunch_number} served to ${name}`;
-
-  // Add to history
-  addToHistory({
-    student_name: name,
-    lunch_number: lunch_number,
-    status: 'success',
-    card_uid: cardUid
-  });
-
-  // Hide after delay
-  hideTimeout = setTimeout(() => {
-    resetDisplay();
-  }, 5000);
-}
-
-function handleLunchError(errorMsg, cardUid) {
-  // Check for specific error types
-  if (errorMsg.includes('Student not found') || errorMsg.includes('404')) {
-    // Unassigned card
-    handleUnassignedCard({ uid: cardUid });
-  } else if (errorMsg.includes('Lunch data not found')) {
-    // Student found but no lunch
-    studentInfo.value = {
-      visible: true,
-      name: 'Student',
-      lunchNumber: null,
-      status: 'warning'
-    };
-    cardStatus.value = '⚠️ No lunch assigned';
-    errorType.value = 'warning';
-    errorMessage.value = 'This student does not have lunch today';
-
-    addToHistory({
-      student_name: 'No Lunch',
-      status: 'warning',
-      errorMessage: 'No lunch data',
-      card_uid: cardUid
-    });
-  } else {
-    // General error
-    studentInfo.value.visible = false;
-    cardStatus.value = '❌ Error';
-    errorType.value = 'error';
-    errorMessage.value = errorMsg || 'Failed to retrieve lunch data';
-
-    addToHistory({
-      student_name: 'Error',
-      status: 'error',
-      errorMessage: errorMsg,
-      card_uid: cardUid
-    });
-  }
-
-  // Hide after delay
-  hideTimeout = setTimeout(() => {
-    resetDisplay();
-  }, 5000);
-}
+  // Handle different response scenarios from your backend
+  if (data.success === false || data.error) {
+    // Error scenarios from backend
+    handleCardError(data);
+  } else if (data.uid && !data.student_name && !data.name) {
+    // Unassigned card (only UID available)
+    handleUnassignedCard(data);
   } else if (data.name || data.student_name) {
     // Successful lunch retrieval
     handleSuccessfulScan(data);

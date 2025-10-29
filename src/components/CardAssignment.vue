@@ -73,9 +73,11 @@ function initializeCardReaderSocket() {
       cardUid.value = data.uid;
       isCardScanned.value = true;
       showSuccess('Card scanned successfully!');
-    } else {
-      cardStatus.value = 'Invalid scan data';
-      showError('No UID received from card reader.');
+    } else if (data.student_id) {
+      cardStatus.value = 'Card Already Assigned!';
+      cardUid.value = '';
+      isCardScanned.value = false;
+      showError('This card is already assigned to a student.');
     }
   });
 
