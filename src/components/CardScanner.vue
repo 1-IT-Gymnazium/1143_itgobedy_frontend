@@ -13,7 +13,7 @@ const errorType = ref(''); // 'error', 'warning', 'success'
 const studentInfo = ref({
   visible: false,
   name: '',
-  lunchNumber: null,
+  Lunch: null,
   status: '' // 'success', 'error', 'warning'
 });
 const scanHistory = ref([]);
@@ -123,8 +123,9 @@ function addToHistory(data) {
   const historyItem = {
     id: Date.now(),
     time,
-    studentName: data.student_name || data.name || 'Error',
-    lunchNumber: data.lunch_number,
+    name: data.student_name || 'Error',
+    surname: data.student_surname || '',
+    lunchNumber: data.lunch_number || '',
     status: data.status || 'unknown',
     errorMessage: data.errorMessage || '',
     isUnassigned: !!data.uid,
@@ -153,11 +154,13 @@ function handleCardScanned(data) {
 
 // New function to handle UID and call backend API
 async function handleCardUID(cardUid) {
+  let data = {};
+
   try {
     cardStatus.value = `Processing card ${cardUid.substring(0, 8)}...`;
 
     // Call backend /lunch endpoint to get student and lunch info
-    const response = await fetch('http://localhost:5000/lunch', {
+    let response = await fetch('http://localhost:5000/api/lunch', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -168,38 +171,47 @@ async function handleCardUID(cardUid) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
+      // Pass student data if available in error response
+      data = errorData;
+
+      // Backend returns error in errorData.error field
+      const errorMessage = errorData.error || `HTTP ${response.status}`;
+      throw new Error(errorMessage);
     }
 
     const lunchData = await response.json();
+    data = lunchData;
 
     // Successfully retrieved lunch data
     handleSuccessfulLunch(lunchData, cardUid);
 
   } catch (error) {
     console.error('Error fetching lunch data:', error);
-    handleLunchError(error.message, cardUid);
+    // Pass both error message and data (which may contain name/surname)
+    handleLunchError(error.message, cardUid, data);
   }
 }
 
 function handleSuccessfulLunch(lunchData, cardUid) {
-  const { name, lunch_number } = lunchData;
+  const { name, surname, Lunch } = lunchData;
 
   studentInfo.value = {
     visible: true,
     name: name || 'Unknown',
-    lunchNumber: lunch_number || 'N/A',
+    surname: surname || '',
+    Lunch: Lunch || 'N/A',
     status: 'success'
   };
 
-  cardStatus.value = `✅ Lunch retrieved for ${name}`;
+  cardStatus.value = `✅ Lunch retrieved for ${name} ${surname}`;
   errorType.value = 'success';
-  errorMessage.value = `Lunch #${lunch_number} served to ${name}`;
+  errorMessage.value = `Lunch #${Lunch} served to ${name} ${surname}`;
 
   // Add to history
   addToHistory({
     student_name: name,
-    lunch_number: lunch_number,
+    student_surname: surname,
+    lunch_number: Lunch,
     status: 'success',
     card_uid: cardUid
   });
@@ -210,40 +222,51 @@ function handleSuccessfulLunch(lunchData, cardUid) {
   }, 5000);
 }
 
-function handleLunchError(errorMsg, cardUid) {
+function handleLunchError(errorMsg, cardUid, data) {
+  console.log('handleLunchError - data received:', data);
+  console.log('handleLunchError - errorMsg:', errorMsg);
+
+  const { name, surname } = data || {};
+
+  // Ensure errorMsg is a string
+  const errorString = String(errorMsg || '');
+
   // Check for specific error types
-  if (errorMsg.includes('Student not found') || errorMsg.includes('404')) {
-    // Unassigned card
+  if (errorString.includes('Student not found') || (errorString.includes('404') && !name)) {
+    // Unassigned card - no student found at all
     handleUnassignedCard({ uid: cardUid });
-  } else if (errorMsg.includes('Lunch data not found')) {
-    // Student found but no lunch
+  } else if (name && surname) {
+    // Student found but no lunch - this is a WARNING, not an error
+    // The backend sends name and surname even when there's no lunch
     studentInfo.value = {
       visible: true,
-      name: 'Student',
-      lunchNumber: null,
+      name: name,
+      surname: surname,
+      Lunch: null,
       status: 'warning'
     };
     cardStatus.value = '⚠️ No lunch assigned';
     errorType.value = 'warning';
-    errorMessage.value = 'This student does not have lunch today';
+    errorMessage.value = `${name} ${surname} does not have lunch today`;
 
     addToHistory({
-      student_name: 'No Lunch',
+      student_name: name,
+      student_surname: surname,
       status: 'warning',
-      errorMessage: 'No lunch data',
+      errorMessage: 'No lunch today',
       card_uid: cardUid
     });
   } else {
-    // General error
+    // General error - something went wrong
     studentInfo.value.visible = false;
     cardStatus.value = '❌ Error';
     errorType.value = 'error';
-    errorMessage.value = errorMsg || 'Failed to retrieve lunch data';
+    errorMessage.value = errorString || 'Failed to retrieve lunch data';
 
     addToHistory({
       student_name: 'Error',
       status: 'error',
-      errorMessage: errorMsg,
+      errorMessage: errorString,
       card_uid: cardUid
     });
   }
@@ -425,7 +448,7 @@ function goToCardAssignment() {
                 <!-- Student Information Display -->
                 <div class="student-card success">
                   <div class="student-header">
-                    <h2 class="student-name">{{ studentInfo.name }}</h2>
+                    <h2 class="student-name">{{ studentInfo.name}} {{studentInfo.surname}}</h2>
                   </div>
 
                   <div class="student-details">
@@ -436,7 +459,7 @@ function goToCardAssignment() {
                         </div>
                         <div class="lunch-text">
                           <span class="lunch-label">Lunch Retrieved</span>
-                          <span class="lunch-number">Lunch #{{ studentInfo.lunchNumber }}</span>
+                          <span class="lunch-number">Lunch #{{ studentInfo.Lunch }}</span>
                         </div>
                       </div>
                     </div>
@@ -460,14 +483,14 @@ function goToCardAssignment() {
 
                   <div class="student-details">
                     <div class="lunch-status">
-                      <div class="lunch-info" :class="{ 'has-lunch': studentInfo.lunchNumber, 'no-lunch': !studentInfo.lunchNumber }">
+                      <div class="lunch-info" :class="{ 'has-lunch': studentInfo.Lunch, 'no-lunch': !studentInfo.Lunch }">
                         <div class="lunch-icon">
-                          <i class="bi bi-cup-hot-fill" v-if="studentInfo.lunchNumber"></i>
+                          <i class="bi bi-cup-hot-fill" v-if="studentInfo.Lunch"></i>
                           <i class="bi bi-x-circle-fill" v-else></i>
                         </div>
                         <div class="lunch-text">
                           <span class="lunch-label">Lunch Status</span>
-                          <span class="lunch-number">{{ studentInfo.lunchNumber ? `Lunch #${studentInfo.lunchNumber}` : 'No lunch ordered today' }}</span>
+                          <span class="lunch-number">{{ studentInfo.Lunch ? `Lunch #${studentInfo.Lunch}` : 'No lunch ordered today' }}</span>
                         </div>
                       </div>
                     </div>
@@ -502,7 +525,7 @@ function goToCardAssignment() {
                 <div class="history-content">
                   <div class="history-main">
                     <span class="history-name" :class="{ 'error': item.isUnassigned }">
-                      {{ item.studentName }}
+                      {{ item.name }} {{item.surname}}
                     </span>
                     <span v-if="!item.isUnassigned && item.lunchNumber" class="history-lunch">
                       Lunch #{{ item.lunchNumber }}

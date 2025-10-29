@@ -102,18 +102,18 @@ server.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
-║   🎴  CARD READER SERVER - SIMPLE UID BROADCASTER  🎴    ║
+║       CARD READER SERVER - SIMPLE UID BROADCASTER         ║
 ║                                                           ║
-║   Server running on: http://localhost:${PORT}              ║
-║   Socket.IO ready for connections                        ║
+║   Server running on: http://localhost:${PORT}             ║
+║   Socket.IO ready for connections                         ║
 ║                                                           ║
 ║   Endpoints:                                              ║
-║   POST /api/card-scan      - Receive card UID            ║
-║   POST /api/simulate-scan  - Test card scanning          ║
-║   GET  /api/status         - Server status               ║
+║   POST /api/card-scan      - Receive card UID             ║
+║   POST /api/simulate-scan  - Test card scanning           ║
+║   GET  /api/status         - Server status                ║
 ║                                                           ║
-║   This server ONLY broadcasts card UIDs.                 ║
-║   Frontend handles all API calls to backend.             ║
+║   This server ONLY broadcasts card UIDs.                  ║
+║   Frontend handles all API calls to backend.              ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
   `);

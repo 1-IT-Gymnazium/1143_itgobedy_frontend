@@ -80,7 +80,7 @@ async function loadStudents() {
   try {
     isLoading.value = true;
     const data = await withSocketRetry(() => api.getStudents());
-    students.value = data.students || [];
+    students.value = data.students.filter(student => !student.has_lunch) || [];
   } catch (error) {
     console.error('Error loading students:', error);
     showError('Failed to load students list.');

@@ -112,8 +112,14 @@ async function assignCard() {
   try {
     isLoading.value = true;
 
+    // Parse full_name to get name and surname
+    const nameParts = selectedStudent.value.full_name.split(' ');
+    const name = nameParts[0];
+    const surname = nameParts.slice(1).join(' ');
+
     await api.assignCard({
-      student_name: selectedStudent.value.full_name,
+      name: name,
+      surname: surname,
       card_uid: cardUid.value
     });
 

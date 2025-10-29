@@ -1,5 +1,5 @@
 // API utility functions
-import {socketAPI} from './socket.js';
+import {socketAPI, getJWTToken} from './socket.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -79,10 +79,16 @@ export const api = {
   getRecentLunches: () => socketAPI.getRecentLunches(),
 
   // POST requests remain as HTTP (unchanged)
-  assignCard: (studentData) => apiRequest('/api/assign-card', {
-    method: 'POST',
-    body: JSON.stringify(studentData)
-  }),
+  assignCard: (studentData) => {
+    const token = getJWTToken();
+    return apiRequest('/api/assign_card', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(studentData)
+    });
+  },
 
   deleteStudent: (studentId) => apiRequest(`/api/students/${studentId}`, {
     method: 'DELETE'
