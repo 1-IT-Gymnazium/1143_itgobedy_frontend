@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { io } from 'socket.io-client';
@@ -142,60 +142,116 @@ function handleCardScanned(data) {
 
   console.log('Handling card scan data:', data);
 
-  // Handle different response scenarios from your backend
-  if (data.success === false || data.error) {
-    // Error scenarios from backend
-    handleCardError(data);
-  } else if (data.uid && !data.student_name && !data.name) {
-    // Unassigned card (only UID available)
-    handleUnassignedCard(data);
-  } else if (data.name || data.student_name) {
-    // Successful lunch retrieval
-    handleSuccessfulScan(data);
+  // Card reader now ONLY sends UID, frontend handles the rest
+  if (data.uid) {
+    handleCardUID(data.uid);
   } else {
-    // Unknown response format
-    handleUnknownResponse(data);
+    console.error('No UID received from card reader');
+    cardStatus.value = 'Error: No card UID';
   }
-
-  // Add to history
-  addToHistory({
-    ...data,
-    status: errorType.value || 'unknown'
-  });
-
-  // Hide info after appropriate time based on status
-  const hideDelay = errorType.value === 'error' ? 15000 : 10000; // Show errors longer
-  hideTimeout = setTimeout(resetDisplay, hideDelay);
 }
 
-function handleCardError(data) {
-  const errorMsg = data.error || data.message || 'Unknown error occurred';
+// New function to handle UID and call backend API
+async function handleCardUID(cardUid) {
+  try {
+    cardStatus.value = `Processing card ${cardUid.substring(0, 8)}...`;
 
-  // Map specific backend errors to user-friendly messages
-  if (errorMsg.includes('card_uid is required')) {
-    cardStatus.value = 'Invalid Card';
-    errorMessage.value = 'Card could not be read properly. Please try again.';
-    errorType.value = 'error';
-  } else if (errorMsg.includes('Student not found')) {
-    cardStatus.value = 'Unregistered Card';
-    errorMessage.value = 'This card is not registered in the system. Please contact the office.';
-    errorType.value = 'warning';
-  } else if (errorMsg.includes('Lunch data not found')) {
-    cardStatus.value = 'No Lunch Assigned';
-    errorMessage.value = 'No lunch has been assigned to this student today.';
-    errorType.value = 'warning';
-  } else {
-    cardStatus.value = 'Error';
-    errorMessage.value = errorMsg;
-    errorType.value = 'error';
+    // Call backend /lunch endpoint to get student and lunch info
+    const response = await fetch('http://localhost:5000/lunch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ card_uid: cardUid })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+
+    const lunchData = await response.json();
+
+    // Successfully retrieved lunch data
+    handleSuccessfulLunch(lunchData, cardUid);
+
+  } catch (error) {
+    console.error('Error fetching lunch data:', error);
+    handleLunchError(error.message, cardUid);
   }
+}
+
+function handleSuccessfulLunch(lunchData, cardUid) {
+  const { name, lunch_number } = lunchData;
 
   studentInfo.value = {
     visible: true,
-    name: '',
-    lunchNumber: null,
-    status: errorType.value
+    name: name || 'Unknown',
+    lunchNumber: lunch_number || 'N/A',
+    status: 'success'
   };
+
+  cardStatus.value = `✅ Lunch retrieved for ${name}`;
+  errorType.value = 'success';
+  errorMessage.value = `Lunch #${lunch_number} served to ${name}`;
+
+  // Add to history
+  addToHistory({
+    student_name: name,
+    lunch_number: lunch_number,
+    status: 'success',
+    card_uid: cardUid
+  });
+
+  // Hide after delay
+  hideTimeout = setTimeout(() => {
+    resetDisplay();
+  }, 5000);
+}
+
+function handleLunchError(errorMsg, cardUid) {
+  // Check for specific error types
+  if (errorMsg.includes('Student not found') || errorMsg.includes('404')) {
+    // Unassigned card
+    handleUnassignedCard({ uid: cardUid });
+  } else if (errorMsg.includes('Lunch data not found')) {
+    // Student found but no lunch
+    studentInfo.value = {
+      visible: true,
+      name: 'Student',
+      lunchNumber: null,
+      status: 'warning'
+    };
+    cardStatus.value = '⚠️ No lunch assigned';
+    errorType.value = 'warning';
+    errorMessage.value = 'This student does not have lunch today';
+
+    addToHistory({
+      student_name: 'No Lunch',
+      status: 'warning',
+      errorMessage: 'No lunch data',
+      card_uid: cardUid
+    });
+  } else {
+    // General error
+    studentInfo.value.visible = false;
+    cardStatus.value = '❌ Error';
+    errorType.value = 'error';
+    errorMessage.value = errorMsg || 'Failed to retrieve lunch data';
+
+    addToHistory({
+      student_name: 'Error',
+      status: 'error',
+      errorMessage: errorMsg,
+      card_uid: cardUid
+    });
+  }
+
+  // Hide after delay
+  hideTimeout = setTimeout(() => {
+    resetDisplay();
+  }, 5000);
 }
 
 function handleUnassignedCard(data) {
@@ -209,32 +265,19 @@ function handleUnassignedCard(data) {
     lunchNumber: null,
     status: 'warning'
   };
-}
 
-function handleSuccessfulScan(data) {
-  cardStatus.value = 'Lunch Retrieved!';
-  errorMessage.value = 'Lunch successfully given to student.';
-  errorType.value = 'success';
+  addToHistory({
+    student_name: 'Unassigned Card',
+    status: 'warning',
+    errorMessage: 'Card not assigned',
+    isUnassigned: true,
+    card_uid: data.uid
+  });
 
-  studentInfo.value = {
-    visible: true,
-    name: data.name || data.student_name,
-    lunchNumber: data.lunch_number,
-    status: 'success'
-  };
-}
-
-function handleUnknownResponse(data) {
-  cardStatus.value = 'Unknown Response';
-  errorMessage.value = 'Received unexpected response from server.';
-  errorType.value = 'error';
-
-  studentInfo.value = {
-    visible: true,
-    name: 'Unknown',
-    lunchNumber: null,
-    status: 'error'
-  };
+  // Hide after delay
+  hideTimeout = setTimeout(() => {
+    resetDisplay();
+  }, 5000);
 }
 
 function showPincodeModal(destination) {
@@ -254,8 +297,8 @@ function resetPinInputs() {
   pinError.value = false;
 }
 
-function handlePinInput(index: number, event: Event) {
-  const target = event.target as HTMLInputElement;
+function handlePinInput(index, event) {
+  const target = event.target;
   const value = target.value;
 
   if (value.length <= 1) {
@@ -263,7 +306,7 @@ function handlePinInput(index: number, event: Event) {
 
     // Move to next input if value entered
     if (value && index < 3) {
-      const nextInput = document.querySelector(`input[data-pin-index="${index + 1}"]`) as HTMLInputElement;
+      const nextInput = document.querySelector(`input[data-pin-index="${index + 1}"]`);
       if (nextInput) nextInput.focus();
     }
 
@@ -274,9 +317,9 @@ function handlePinInput(index: number, event: Event) {
   }
 }
 
-function handlePinKeydown(index: number, event: KeyboardEvent) {
+function handlePinKeydown(index, event) {
   if (event.key === 'Backspace' && !pinCode.value[index] && index > 0) {
-    const prevInput = document.querySelector(`input[data-pin-index="${index - 1}"]`) as HTMLInputElement;
+    const prevInput = document.querySelector(`input[data-pin-index="${index - 1}"]`);
     if (prevInput) prevInput.focus();
   }
 
@@ -287,8 +330,9 @@ function handlePinKeydown(index: number, event: KeyboardEvent) {
 
 function validatePin() {
   const enteredPin = pinCode.value.join('');
+  const validPin = import.meta.env.VITE_CARD_SCANNER_PIN || '1234'; // Default PIN if not set
 
-  if (enteredPin === import.meta.env.VITE_CARD_SCANNER_PIN) {
+  if (enteredPin === validPin) {
     closePincodeModal();
     if (currentDestination.value === 'admin') {
       router.push('/admin');
@@ -299,7 +343,7 @@ function validatePin() {
     pinError.value = true;
     resetPinInputs();
     setTimeout(() => {
-      const firstInput = document.querySelector('input[data-pin-index="0"]') as HTMLInputElement;
+      const firstInput = document.querySelector('input[data-pin-index="0"]');
       if (firstInput) firstInput.focus();
     }, 100);
   }
@@ -1278,7 +1322,7 @@ function goToCardAssignment() {
 }
 
 .status-label {
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-base);
   color: var(--text-secondary);
   margin: 0 0 var(--space-sm) 0;
 }
