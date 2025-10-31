@@ -85,6 +85,8 @@ class SocketManager {
     return this.socket;
   }
 
+
+
   setupEventListeners() {
     this.socket.on('connect', () => {
       console.log('Socket connected globally');

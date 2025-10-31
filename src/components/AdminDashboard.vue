@@ -30,29 +30,43 @@ let timeInterval = null;
 
 // Real-time update handlers
 const handleLunchUpdates = (data) => {
-  console.log('Real-time lunch pool update received:', data);
-  stats.value.availableCount = {
-    1: data["lunch 1"] || 0,
-    2: data["lunch 2"] || 0,
-    3: data["lunch 3"] || 0
-  };
+  try {
+    console.log('Real-time lunch pool update received:', data);
+    stats.value.availableCount = {
+      1: data["lunch 1"] || 0,
+      2: data["lunch 2"] || 0,
+      3: data["lunch 3"] || 0
+    };
+  } catch (e) {
+    console.error('Error processing lunch updates:', e);
+  }
+
 };
 
 const handleAllStudentUpdates = (data) => {
-  console.log('Real-time all students update received:', data);
-  const allUsers = data.users || [];
-  const usersWithLunch = allUsers.filter(user => user.has_lunch === true).length;
-  const usersWithoutLunch = allUsers.length - usersWithLunch;
+  try{
+    console.log('Real-time all students update received:', data);
+    const allUsers = data.users || [];
+    const usersWithLunch = allUsers.filter(user => user.has_lunch === true).length;
+    const usersWithoutLunch = allUsers.length - usersWithLunch;
 
-  stats.value.totalStudents = allUsers.length;
-  stats.value.studentsWithLunch = usersWithLunch;
-  stats.value.studentsWithoutLunch = usersWithoutLunch;
-  stats.value.lunchCount = usersWithLunch;
+    stats.value.totalStudents = allUsers.length;
+    stats.value.studentsWithLunch = usersWithLunch;
+    stats.value.studentsWithoutLunch = usersWithoutLunch;
+    stats.value.lunchCount = usersWithLunch;
+  } catch (e) {
+    console.error('Error processing all student updates:', e);
+  }
 };
 
 const handleRecentLunchUpdates = (data) => {
-  console.log('Real-time recent lunches update received:', data);
-  recentAssignments.value = data.recent_lunches || [];
+  try {
+    console.log('Real-time recent lunches update received:', data);
+    recentAssignments.value = data.recent_lunches || [];
+  } catch (e) {
+    console.error('Error processing recent lunch updates:', e);
+  }
+
 };
 
 onMounted(async () => {
@@ -61,9 +75,14 @@ onMounted(async () => {
   socketAPI.onAllStudentUpdates(handleAllStudentUpdates);
   socketAPI.onRecentLunchUpdates(handleRecentLunchUpdates);
 
-  await fetchDashboardData();
-  startAutoRefresh();
-  timeInterval = setInterval(updateTime, 1000);
+  try {
+    await fetchDashboardData();
+    startAutoRefresh();
+    timeInterval = setInterval(updateTime, 1000);
+  } catch (error) {
+    console.error('Error setting up real-time listeners:', error);
+    await router.push('/server-error');
+  }
 });
 
 onUnmounted(() => {
@@ -115,13 +134,15 @@ function updateTime() {
 
 async function fetchDashboardData() {
   try {
+    socketAPI.connect();
+
     isLoading.value = true;
 
     // Fetch all data in parallel using socket connections with retry
     const [poolResponse, usersResponse, recent] = await Promise.all([
-      withSocketRetry(() => api.getLunches()).catch(() => ({ "lunch 1": 0, "lunch 2": 0, "lunch 3": 0 })),
-      withSocketRetry(() => api.getAllStudents()).catch(() => ({ users: [] })),
-      withSocketRetry(() => api.getRecentLunches()).catch(() => ({ recent_lunches: [] }))
+      withSocketRetry(() => api.getLunches()),
+      withSocketRetry(() => api.getAllStudents()),
+      withSocketRetry(() => api.getRecentLunches())
     ]);
 
     console.log(usersResponse);
@@ -154,11 +175,12 @@ async function fetchDashboardData() {
 
     console.log('Stats updated:', stats.value);
 
+    isLoading.value = false;
+
   } catch (error) {
     console.error('Failed to fetch dashboard data:', error);
     showError('Failed to load dashboard data');
-  } finally {
-    isLoading.value = false;
+    return promise.reject(error);
   }
 }
 

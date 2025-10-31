@@ -8,6 +8,7 @@ import AdminDashboard from '../components/AdminDashboard.vue';
 import CardScanner from '../components/CardScanner.vue';
 import CardAssignment from '../components/CardAssignment.vue';
 import ServerError from "@/components/ServerError.vue";
+import {socketAPI} from "@/utils/api.js";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -79,20 +80,53 @@ function isUserAdmin() {
   return adminEmails.includes(userEmail);
 }
 
+// Track if we're in the middle of a logout
+export let isLoggingOut = false;
+
 // Navigation guard to check authentication and admin access
 router.beforeEach((to, from, next) => {
-  const isAuthenticated = localStorage.getItem('is_authenticated');
+  const token = document.cookie.includes('access_token_cookie');
+    const publicPages = ['/', '/NotFound', '/server-error'];
+    const authRequired = !publicPages.includes(to.path);
 
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    // Redirect to login if trying to access protected route without authentication
-    next({ name: 'login' })
-  } else if (to.meta.requiresAdmin && !isUserAdmin()) {
-    // Redirect to dashboard if trying to access admin route without admin privileges
-    next({ name: 'dashboard' })
-  } else {
-    // Allow navigation
-    next()
-  }
-})
+    // Prevent infinite redirect loop
+    if (authRequired && !token) {
+        if (to.path !== '/') {
+            return next('/');
+        }
+    }
+
+    // Check socket connection for public pages (except during logout)
+    if (!authRequired && !isLoggingOut) {
+        const socket = socketAPI.getSocket();
+        if (socket && !socket.connected) {
+            if (to.path === '/') {
+                return next();
+            } else if (to.path !== '/server-error' && to.path !== '/') {
+                return next('/server-error');
+            }
+        }
+    }
+
+    // Reset logout flag after navigation
+    if (isLoggingOut && to.path === '/') {
+        isLoggingOut = false;
+    }
+
+    if (authRequired && !token) {
+        return next('/');
+    }
+
+    if (!authRequired && token && to.path === '/') {
+        return next('/dashboard');
+    }
+
+    next();
+});
+
+// Export function to set logout state
+export function setLoggingOut(value) {
+    isLoggingOut = value;
+}
 
 export default router

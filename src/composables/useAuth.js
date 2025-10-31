@@ -3,9 +3,10 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../utils/api.js';
 import { onMounted, onUnmounted } from 'vue';
+import {setLoggingOut} from "@/router/index.js";
 
 // Global state that persists across component instances
-const isAuthenticated = ref(false);
+const isAuthenticated = ref(document.cookie.includes('access_token_cookie'));
 const user = ref({
   name: '',
   email: '',
@@ -14,10 +15,7 @@ const user = ref({
 
 // Initialize auth state from localStorage immediately
 function initAuthState() {
-  const authFlag = localStorage.getItem('is_authenticated');
-  isAuthenticated.value = !!authFlag;
-
-  if (authFlag) {
+  if (isAuthenticated) {
     user.value = {
       name: localStorage.getItem('user_name') || '',
       email: localStorage.getItem('user_email') || '',
@@ -31,6 +29,11 @@ initAuthState();
 
 export function useAuth() {
   const router = useRouter();
+  const user = ref({
+      name: localStorage.getItem('user_name') || '',
+      email: localStorage.getItem('user_email') || '',
+      picture: localStorage.getItem('picture') || ''
+  });
 
   // Set authentication data
   function setAuth(userData) {
@@ -62,19 +65,22 @@ export function useAuth() {
 
   // Logout function
   async function logout() {
+      setLoggingOut(true);
+
     try {
       await api.logout();
+      clearAuth();
+      await router.push('/');
     } catch (error) {
       console.error('Logout error:', error);
-    } finally {
-      clearAuth();
-      router.push('/');
+      await router.push('/server-error');
+      setLoggingOut(false);
     }
   }
 
   // Require authentication (redirect if not authenticated)
   function requireAuth() {
-    if (!isAuthenticated.value) {
+    if (!isAuthenticated) {
       router.push('/');
       return false;
     }
@@ -90,7 +96,4 @@ export function useAuth() {
     logout,
     requireAuth
   };
-}
-
-export default class clearAuth {
 }

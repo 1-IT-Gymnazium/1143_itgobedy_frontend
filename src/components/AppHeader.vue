@@ -216,7 +216,7 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
-import { computed } from 'vue'
+import {computed, onMounted, ref} from 'vue'
 
 defineProps({
   isDarkMode: Boolean
@@ -228,16 +228,24 @@ const router = useRouter()
 const route = useRoute()
 const { isAuthenticated, user } = useAuth()
 
-// Check if user is admin (using environment variables)
-const isAdmin = computed(() => {
-  if (!user.value) return false;
+onMounted(() => {
+  checkAdminStatus()
+})
 
-  // Get admin emails from environment variable
+// Check if user is admin (using environment variables)
+const isAdmin = ref(false);
+
+async function checkAdminStatus() {
+  if (!user.value) {
+    isAdmin.value = false;
+    return;
+  }
+
   const adminEmailsString = import.meta.env.VITE_ADMIN_EMAILS || '';
   const adminEmails = adminEmailsString.split(',').map(email => email.trim()).filter(email => email);
 
-  return adminEmails.includes(user.value.email);
-});
+  isAdmin.value = adminEmails.includes(user.value.email);
+}
 
 function goToAdmin() {
   router.push('/admin')

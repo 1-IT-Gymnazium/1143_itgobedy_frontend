@@ -6,6 +6,7 @@ import AppHeader from "./components/AppHeader.vue";
 import { socketAPI } from './utils/socket.js'
 import { useAuth } from "./composables/useAuth.js";
 import router from "@/router/index.js";
+import {isLoggingOut} from "@/router/index.js";
 
 // Theme management
 const isDarkMode = ref(false)
@@ -31,14 +32,15 @@ watch(isAuthenticated, (newValue) => {
 
 function handleServerError(event) {
   console.log('Internal server error - logging out user', event.detail);
-  clearAuth()
   router.push('/server-error?error=' + event.detail.message.replace(/ /g, '+'))
 }
 
 function handleSocketDisconnected(event) {
-  console.log('Socket disconnected - logging out user', event.detail);
-  clearAuth()
-  router.push('/server-error?error=Socket+disconnected')
+  if (!isLoggingOut) {
+    // If the user is logging out, do not redirect to server error
+    console.log('Socket disconnected - logging out user', event.detail);
+    router.push('/server-error?error=Socket+disconnected')
+  }
 }
 
 // Initialize theme

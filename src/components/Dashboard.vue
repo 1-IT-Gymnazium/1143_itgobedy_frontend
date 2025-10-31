@@ -10,6 +10,8 @@ const { user, requireAuth, logout } = useAuth();
 const hasLunchToday = ref(false);
 const lunchNumber = ref(localStorage.getItem('lunchNumber') || 0);
 
+const isLoading = ref(true);
+
 const currentDate = computed(() => {
   const today = new Date();
   return today.toLocaleDateString('en-US', {
@@ -48,14 +50,10 @@ const loadUserInfo = async () => {
     // Get initial user info via socket with retry
     const userData = await withSocketRetry(() => api.getUserInfo());
     handleUserInfoUpdate(userData);
+    isLoading.value = false;
   } catch (error) {
     console.error('Error loading user info:', error);
-    // Final fallback - use localStorage data
-    const storedLunchNumber = localStorage.getItem('lunchNumber');
-    if (storedLunchNumber) {
-      hasLunchToday.value = true;
-      lunchNumber.value = storedLunchNumber;
-    }
+    return Promise.reject(error);
   }
 };
 
@@ -63,11 +61,21 @@ onMounted(async () => {
   // Check authentication
   if (!requireAuth()) return;
 
-  // Set up real-time updates listener
-  socketAPI.onUserInfoUpdates(handleUserInfoUpdate);
 
-  // Load user info with retry logic
-  await loadUserInfo();
+  // Set up real-time updates listener
+  try {
+    socketAPI.connect()
+    socketAPI.onUserInfoUpdates(handleUserInfoUpdate);
+  } catch (error) {
+    await router.push('/server-error');
+  }
+
+  try {
+    // Load user info with retry logic
+    await loadUserInfo();
+  } catch (error) {
+    await router.push('/server-error');
+  }
 });
 
 onUnmounted(() => {
@@ -82,12 +90,17 @@ onUnmounted(() => {
       <div class="dashboard-card fade-in">
         <div class="dashboard-header">
           <div class="user-profile">
-            <img
+            <div class="user-avatar">
+              <img
                 v-if="user.picture"
                 :src="user.picture"
                 alt="Profile"
                 class="profile-avatar"
-            />
+              />
+              <span v-else>
+                      {{ user.name.charAt(0).toUpperCase() }}
+              </span>
+            </div>
             <div class="user-info">
               <h1 class="welcome-text">Welcome back!</h1>
               <h2 class="user-name">{{ user.name }}</h2>
@@ -107,7 +120,11 @@ onUnmounted(() => {
             </div>
 
             <div class="lunch-info">
-              <div v-if="hasLunchToday" class="lunch-success">
+              <div v-if="isLoading" class="loading-state">
+                <div class="loading-spinner"></div>
+              </div>
+
+              <div v-else-if="hasLunchToday" class="lunch-success">
                 <i class="bi bi-fork-knife lunch-icon"></i>
                 <div class="lunch-details">
                   <h4>Lunch Confirmed</h4>
@@ -213,12 +230,26 @@ onUnmounted(() => {
   gap: var(--space-lg);
 }
 
+.user-avatar{
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-full);
+  background: var(--brand-primary);
+  color: var(--text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-4xl);
+}
+
 .profile-avatar {
-  width: 72px;
-  height: 72px;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   border-radius: var(--radius-full);
   border: 3px solid var(--border-primary);
-  object-fit: cover;
+  display: block;
   transition: all var(--transition-fast);
 }
 
@@ -323,6 +354,29 @@ onUnmounted(() => {
 }
 [data-theme="dark"] .lunch-info {
   background: #35688c;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-primary);
+  border-top: 4px solid var(--brand-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .lunch-success,
@@ -511,15 +565,15 @@ onUnmounted(() => {
     padding: var(--space-lg);
   }
 
+  .profile-avatar {
+    width: 64px;
+    height: 64px;
+  }
+
   .user-profile {
     flex-direction: column;
     text-align: center;
     gap: var(--space-md);
-  }
-
-  .profile-avatar {
-    width: 64px;
-    height: 64px;
   }
 
   .user-name {
