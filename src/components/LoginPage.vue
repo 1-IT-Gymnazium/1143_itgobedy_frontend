@@ -11,12 +11,9 @@ const { showError, clearNotification, message, messageType } = useNotifications(
 
 onMounted(async () => {
   // Check if user is already authenticated
-  if (isAuthenticated.value) {
-    const authValid = await checkAuth();
-    if (authValid) {
-      router.push('/dashboard');
-      return;
-    }
+  if (document.cookie.includes('access_token_cookie')) {
+    await router.push('/dashboard');
+    return;
   }
 
   // Load Google authentication script

@@ -4,22 +4,42 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import AppFooter from './components/AppFooter.vue'
 import AppHeader from "./components/AppHeader.vue";
 import { socketAPI } from './utils/socket.js'
-import { useAuth } from './composables/useAuth.js'
+import { useAuth } from "./composables/useAuth.js";
+import router from "@/router/index.js";
 
 // Theme management
 const isDarkMode = ref(false)
-const { isAuthenticated } = useAuth()
+const isAuthenticated = ref(document.cookie.includes('access_token_cookie'));
+
+// Kontrola každých 5 sekund
+let authCheckInterval = null;
+
+const { clearAuth, logout } = useAuth();
 
 // Watch for authentication changes to connect/disconnect socket
 watch(isAuthenticated, (newValue) => {
   if (newValue) {
     // User authenticated - connect socket
     socketAPI.connect()
-  } else {
+  } else if (socketAPI.isConnected()) {
     // User logged out - disconnect socket
     socketAPI.disconnect()
+    clearAuth()
+    logout()
   }
 }, { immediate: true }) // Changed back to true to handle page reload
+
+function handleServerError(event) {
+  console.log('Internal server error - logging out user', event.detail);
+  clearAuth()
+  router.push('/server-error?error=' + event.detail.message.replace(/ /g, '+'))
+}
+
+function handleSocketDisconnected(event) {
+  console.log('Socket disconnected - logging out user', event.detail);
+  clearAuth()
+  router.push('/server-error?error=Socket+disconnected')
+}
 
 // Initialize theme
 onMounted(() => {
@@ -28,11 +48,25 @@ onMounted(() => {
 
   isDarkMode.value = savedTheme ? savedTheme === 'dark' : prefersDark
   updateTheme()
+
+  authCheckInterval = setInterval(() => {
+    isAuthenticated.value = document.cookie.includes('access_token_cookie');
+  }, 5000); // 5000ms = 5 sekund
+
+  window.addEventListener('server-error', handleServerError)
+  window.addEventListener('socket-disconnected', handleSocketDisconnected)
 })
 
 // Cleanup socket connection on unmount
 onUnmounted(() => {
   socketAPI.disconnect()
+
+  if (authCheckInterval) {
+    clearInterval(authCheckInterval);
+  }
+
+  window.removeEventListener('server-error', handleServerError)
+  window.removeEventListener('socket-disconnected', handleSocketDisconnected)
 })
 
 // Update theme

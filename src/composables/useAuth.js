@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../utils/api.js';
+import { onMounted, onUnmounted } from 'vue';
 
 // Global state that persists across component instances
 const isAuthenticated = ref(false);
@@ -47,7 +48,7 @@ export function useAuth() {
     isAuthenticated.value = false;
     user.value = { name: '', email: '', picture: '' };
 
-    localStorage.removeItem('is_authenticated');
+    localStorage.setItem('is_authenticated', 'false');
     localStorage.removeItem('user_name');
     localStorage.removeItem('user_email');
     localStorage.removeItem('picture');
@@ -56,13 +57,7 @@ export function useAuth() {
 
   // Check if user is authenticated
   async function checkAuth() {
-    try {
-      await api.getUserInfo();
-      return true;
-    } catch (error) {
-      clearAuth();
-      return false;
-    }
+      return isAuthenticated.value;
   }
 
   // Logout function
@@ -95,4 +90,7 @@ export function useAuth() {
     logout,
     requireAuth
   };
+}
+
+export default class clearAuth {
 }

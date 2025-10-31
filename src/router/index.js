@@ -7,6 +7,7 @@ import GiftLunch from '../components/GiftLunch.vue';
 import AdminDashboard from '../components/AdminDashboard.vue';
 import CardScanner from '../components/CardScanner.vue';
 import CardAssignment from '../components/CardAssignment.vue';
+import ServerError from "@/components/ServerError.vue";
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -51,6 +52,12 @@ const router = createRouter({
       name: 'card-assignment',
       component: CardAssignment,
       meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/server-error',
+      name: 'server-error',
+      component: ServerError,
+      meta: { requiresAuth: true }
     },
     {
       path: '/:pathMatch(.*)*',

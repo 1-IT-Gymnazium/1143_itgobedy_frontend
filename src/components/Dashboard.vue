@@ -82,7 +82,12 @@ onUnmounted(() => {
       <div class="dashboard-card fade-in">
         <div class="dashboard-header">
           <div class="user-profile">
-            <img :src="user.picture" alt="Profile" class="profile-avatar" />
+            <img
+                v-if="user.picture"
+                :src="user.picture"
+                alt="Profile"
+                class="profile-avatar"
+            />
             <div class="user-info">
               <h1 class="welcome-text">Welcome back!</h1>
               <h2 class="user-name">{{ user.name }}</h2>

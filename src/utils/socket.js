@@ -95,14 +95,17 @@ class SocketManager {
 
     this.socket.on('disconnect', () => {
       console.log('Socket disconnected');
+      window.dispatchEvent(new CustomEvent('socket-disconnected', {detail: { message: 'Websocket disconnected' } }));
       this.connected = false;
       this.isConnecting = false;
+      this.socket.io.reconnection(false);
     });
 
     this.socket.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
-      this.reconnectAttempts++;
+      window.dispatchEvent(new CustomEvent('server-error', { detail: { message: 'Server connection error' } }));
       this.isConnecting = false;
+      this.socket.io.reconnection(false);
     });
 
     this.socket.on('error', (error) => {
