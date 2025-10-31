@@ -154,7 +154,7 @@ onUnmounted(() => {
         <div class="dashboard-footer">
           <button @click="logout" class="logout-btn">
             <i class="bi bi-box-arrow-right"></i>
-            Sign Out
+            Logout
           </button>
         </div>
       </div>
