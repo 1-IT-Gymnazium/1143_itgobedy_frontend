@@ -409,7 +409,48 @@ function goToCardAssignment() {
     <!-- Main Content -->
     <main class="scanner-main">
       <div class="scanner-container">
-        <!-- Page Title -->
+
+        <!-- History Sidebar -->
+        <aside class="history-sidebar">
+          <div class="history-card">
+            <h3 class="history-title">Today's Scans</h3>
+
+            <div class="current-time-display">
+              {{ currentTime }}
+            </div>
+
+            <div class="scan-history">
+              <div v-if="scanHistory.length === 0" class="no-scans">
+                <i class="bi bi-clock-history"></i>
+                <p>No scans yet</p>
+              </div>
+
+              <div v-else class="history-list">
+                <div
+                  v-for="item in scanHistory"
+                  :key="item.id"
+                  class="history-item"
+                  :class="{ 'unassigned': item.isUnassigned }"
+                >
+                  <div class="history-content">
+                    <div class="history-main">
+                      <span class="history-name" :class="{ 'error': item.isUnassigned }">
+                        {{ item.name }} {{item.surname}}
+                      </span>
+                      <span v-if="!item.isUnassigned && item.lunchNumber" class="history-lunch">
+                        Lunch #{{ item.lunchNumber }}
+                      </span>
+                      <span v-else-if="!item.isUnassigned" class="history-lunch no-lunch">
+                        No lunch
+                      </span>
+                    </div>
+                    <span class="history-time">{{ item.time }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
 
         <!-- Scanner Section -->
         <div class="scanner-card">
@@ -500,54 +541,6 @@ function goToCardAssignment() {
             </div>
           </div>
         </div>
-
-        <!-- History Section -->
-        <div class="history-card">
-          <h3 class="history-title">Today's Scan History</h3>
-
-          <div class="current-time-display">
-            {{ currentTime }}
-          </div>
-
-          <div class="scan-history">
-            <div v-if="scanHistory.length === 0" class="no-scans">
-              <i class="bi bi-clock-history"></i>
-              <p>No scans yet today</p>
-            </div>
-
-            <div v-else class="history-list">
-              <div
-                v-for="item in scanHistory"
-                :key="item.id"
-                class="history-item"
-                :class="{ 'unassigned': item.isUnassigned }"
-              >
-                <div class="history-content">
-                  <div class="history-main">
-                    <span class="history-name" :class="{ 'error': item.isUnassigned }">
-                      {{ item.name }} {{item.surname}}
-                    </span>
-                    <span v-if="!item.isUnassigned && item.lunchNumber" class="history-lunch">
-                      Lunch #{{ item.lunchNumber }}
-                    </span>
-                    <span v-else-if="!item.isUnassigned" class="history-lunch no-lunch">
-                      No lunch
-                    </span>
-                  </div>
-                  <span class="history-time">{{ item.time }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="action-buttons">
-          <button @click="goToAdmin" class="action-btn primary">
-            <i class="bi bi-arrow-left"></i>
-            Back to Admin Dashboard
-          </button>
-        </div>
       </div>
     </main>
 
@@ -594,7 +587,7 @@ function goToCardAssignment() {
 
 <style scoped>
 .card-scanner {
-  min-height: 100vh;
+  min-height: 50vh;
   background: transparent;
   display: flex;
   flex-direction: column;
@@ -667,16 +660,18 @@ function goToCardAssignment() {
 /* Main Content */
 .scanner-main {
   flex: 1;
-  padding: var(--space-2xl) 0;
+  padding: var(--space-2xl) var(--space-lg);
+  overflow: hidden;
 }
 
 .scanner-container {
-  max-width: 800px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 0 var(--space-lg);
-  display: flex;
-  flex-direction: column;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 320px 1fr;
   gap: var(--space-2xl);
+  align-items: stretch;
 }
 
 /* Page Title */
@@ -704,6 +699,8 @@ function goToCardAssignment() {
   border-radius: var(--radius-2xl);
   padding: var(--space-2xl);
   box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
 }
 
 .instructions-section {
@@ -1093,20 +1090,29 @@ function goToCardAssignment() {
   box-shadow: var(--shadow-md);
 }
 
+/* History Sidebar */
+.history-sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
 /* History Card */
 .history-card {
   background: var(--bg-card);
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-2xl);
-  padding: var(--space-2xl);
+  padding: var(--space-xl);
   box-shadow: var(--shadow-xl);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .history-title {
-  font-size: var(--font-size-2xl);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
-  margin: 0 0 var(--space-lg) 0;
+  margin: 0 0 var(--space-md) 0;
   text-align: center;
 }
 
@@ -1117,15 +1123,16 @@ function goToCardAssignment() {
   border-radius: var(--radius-lg);
   color: var(--text-secondary);
   font-weight: var(--font-weight-medium);
-  margin-bottom: var(--space-lg);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-md);
 }
 
 .scan-history {
-  max-height: 320px;
+  flex: 1;
   overflow-y: auto;
   background: var(--bg-secondary);
   border-radius: var(--radius-xl);
-  padding: var(--space-lg);
+  padding: var(--space-md);
 }
 
 .no-scans {
@@ -1145,28 +1152,30 @@ function goToCardAssignment() {
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-sm);
 }
 
 .history-item {
   background: var(--bg-card);
-  border-radius: var(--radius-xl);
-  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
   box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
 }
 
 .history-item:hover {
   box-shadow: var(--shadow-md);
+  transform: translateX(4px);
 }
 
 .history-item.unassigned {
-  border-left: 4px solid var(--error-text);
+  border-left: 3px solid var(--error-text);
 }
 
 .history-content {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: var(--space-xs);
 }
 
 .history-main {
@@ -1178,6 +1187,7 @@ function goToCardAssignment() {
 .history-name {
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
+  font-size: var(--font-size-sm);
 }
 
 .history-name.error {
@@ -1185,8 +1195,9 @@ function goToCardAssignment() {
 }
 
 .history-lunch {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   color: var(--success-text);
+  font-weight: var(--font-weight-medium);
 }
 
 .history-lunch.no-lunch {
@@ -1194,17 +1205,19 @@ function goToCardAssignment() {
 }
 
 .history-time {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   font-weight: var(--font-weight-medium);
 }
 
 /* Action Buttons */
 .action-buttons {
+  grid-column: 1 / -1;
   display: flex;
   gap: var(--space-lg);
   justify-content: center;
   flex-wrap: wrap;
+  margin-top: var(--space-xl);
 }
 
 .action-btn {
@@ -1380,12 +1393,34 @@ function goToCardAssignment() {
     display: block;
   }
 
+  .action-buttons {
+    flex-direction: row;
+  }
+}
+
+@media (max-width: 1024px) {
   .scanner-container {
-    padding: 0 var(--space-xl);
+    grid-template-columns: 1fr;
+    gap: var(--space-lg);
+  }
+
+  .history-sidebar {
+    height: auto;
+    position: static;
+    order: 1;
+  }
+
+  .history-card {
+    max-height: 400px;
+  }
+
+  .scanner-card {
+    order: 2;
   }
 
   .action-buttons {
-    flex-direction: row;
+    grid-column: 1;
+    order: 3;
   }
 }
 
@@ -1404,13 +1439,8 @@ function goToCardAssignment() {
     transform: none;
   }
 
-  .scanner-container {
-    padding: 0 var(--space-md);
-    gap: var(--space-lg);
-  }
-
-  .title-text {
-    font-size: var(--font-size-3xl);
+  .scanner-main {
+    padding: var(--space-lg) var(--space-md);
   }
 
   .scanner-card,
@@ -1430,12 +1460,8 @@ function goToCardAssignment() {
 }
 
 @media (max-width: 480px) {
-  .scanner-container {
-    padding: 0 var(--space-sm);
-  }
-
   .scanner-main {
-    padding: var(--space-lg) 0;
+    padding: var(--space-lg) var(--space-sm);
   }
 
   .scanner-card,
