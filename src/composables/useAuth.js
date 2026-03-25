@@ -2,7 +2,6 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../utils/api.js';
-import { onMounted, onUnmounted } from 'vue';
 import {setLoggingOut} from "@/router/index.js";
 
 // Global state that persists across component instances

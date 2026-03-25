@@ -29,9 +29,9 @@ export async function signInWithGoogle() {
 
         // Nastavit autentizaci v aplikaci
         useAuth().setAuth({
-            name: user.displayName,
+            name: response?.name || user.displayName || '',
             email: user.email,
-            picture: user.photoURL,
+            picture: response?.picture || user.photoURL || '',
             isAdmin: Boolean(response?.is_admin)
         });
         console.log('✅ Auth state set');
