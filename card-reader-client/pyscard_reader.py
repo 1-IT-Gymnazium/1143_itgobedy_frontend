@@ -34,7 +34,7 @@ init()
 # Configuration
 SERVER_URL = os.getenv('SERVER_URL', 'http://localhost:3001')
 CARD_SCAN_ENDPOINT = '/api/card-scan'
-HEALTH_ENDPOINT = '/api/health'
+HEALTH_ENDPOINT = '/api/status'
 READER_NAME = os.getenv('READER_NAME', None)  # Specific reader name or None for auto-detect
 
 class CardReaderObserver(CardObserver):
