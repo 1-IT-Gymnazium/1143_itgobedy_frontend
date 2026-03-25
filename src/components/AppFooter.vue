@@ -61,8 +61,8 @@ const currentYear = computed(() => new Date().getFullYear());
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-2xl) 0;
-  min-height: 80px;
+  padding: var(--space-md) 0;
+  min-height: 52px;
   flex-wrap: wrap;
 }
 
@@ -99,7 +99,7 @@ const currentYear = computed(() => new Date().getFullYear());
 }
 
 .footer-logo-img {
-  height: 70px;
+  height: 40px;
   width: auto;
   max-width: 30vw;
   transition: all var(--transition-normal);

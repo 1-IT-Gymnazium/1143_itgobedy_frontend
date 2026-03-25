@@ -26,14 +26,25 @@
           </button>
         </nav>
 
-        <button
-          @click="$emit('toggle-theme')"
-          class="theme-toggle"
-          :aria-label="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-        >
-          <i v-if="!isDarkMode" class="bi bi-moon"></i>
-          <i v-else class="bi bi-sun"></i>
-        </button>
+        <div class="header-right">
+          <button
+            v-if="route.name === 'card-scanner'"
+            @click="requestBackToAdmin"
+            class="back-scanner-btn"
+          >
+            <i class="bi bi-arrow-left"></i>
+            <span>Back to Admin</span>
+          </button>
+
+          <button
+            @click="$emit('toggle-theme')"
+            class="theme-toggle"
+            :aria-label="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+          >
+            <i v-if="!isDarkMode" class="bi bi-moon"></i>
+            <i v-else class="bi bi-sun"></i>
+          </button>
+        </div>
       </div>
     </div>
   </header>
@@ -128,6 +139,34 @@
 
 .nav-text {
   display: none;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.back-scanner-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.back-scanner-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
 }
 
 .theme-toggle {
@@ -245,6 +284,10 @@ async function checkAdminStatus() {
   const adminEmails = adminEmailsString.split(',').map(email => email.trim()).filter(email => email);
 
   isAdmin.value = adminEmails.includes(user.value.email);
+}
+
+function requestBackToAdmin() {
+  window.dispatchEvent(new CustomEvent('back-to-admin'));
 }
 
 function goToAdmin() {

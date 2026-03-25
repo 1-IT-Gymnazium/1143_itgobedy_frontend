@@ -9,7 +9,7 @@
 
   /* Light Theme Colors - More transparent to show animated background */
   --bg-primary: rgba(254, 253, 248, 0.4);
-  --bg-secondary: rgba(248, 247, 242, 0.5);
+  --bg-secondary: rgba(239, 238, 236, 0.5);
   --bg-tertiary: rgba(241, 240, 235, 0.6);
   --bg-card: rgba(255, 255, 255, 0.7);
   --bg-overlay: rgba(0, 0, 0, 0.05);
@@ -19,7 +19,7 @@
   --text-tertiary: #757575;
   --text-inverse: #ffffff;
 
-  --border-primary: #e8e7e2;
+  --border-primary: #eae8e4;
   --border-secondary: #d1d0cb;
   --border-focus: var(--brand-primary);
 

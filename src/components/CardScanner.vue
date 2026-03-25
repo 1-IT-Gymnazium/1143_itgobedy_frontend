@@ -33,9 +33,11 @@ onMounted(() => {
   updateTime();
   timeInterval = setInterval(updateTime, 1000);
   initializeSocket();
+  window.addEventListener('back-to-admin', goToAdmin);
 });
 
 onUnmounted(() => {
+  window.removeEventListener('back-to-admin', goToAdmin);
   if (timeInterval) {
     clearInterval(timeInterval);
   }
@@ -133,6 +135,30 @@ function addToHistory(data) {
   };
 
   scanHistory.value.unshift(historyItem);
+}
+
+function loadMockScans(count = 60) {
+  const names = ['Adam', 'Eva', 'Jan', 'Lucie', 'Petr', 'Anna', 'Martin', 'Tereza'];
+  const statuses = ['success', 'warning', 'error'];
+
+  scanHistory.value = Array.from({ length: count }, (_, index) => {
+    const status = statuses[index % statuses.length];
+    const isUnassigned = status === 'warning' && index % 5 === 0;
+    const hasLunch = status === 'success';
+    const scannedAt = new Date(Date.now() - index * 45 * 1000);
+
+    return {
+      id: Date.now() + index,
+      time: scannedAt.toLocaleTimeString('en-GB'),
+      name: isUnassigned ? 'Unassigned Card' : names[index % names.length],
+      surname: isUnassigned ? '' : `Mock${index + 1}`,
+      lunchNumber: hasLunch ? ((index % 4) + 1) : '',
+      status,
+      errorMessage: status === 'error' ? 'Mock backend error' : status === 'warning' ? 'No lunch today' : '',
+      isUnassigned,
+      isError: status === 'error'
+    };
+  });
 }
 
 function handleCardScanned(data) {
@@ -383,28 +409,6 @@ function goToCardAssignment() {
 
 <template>
   <div class="card-scanner">
-    <!-- Header -->
-    <header class="scanner-header">
-      <div class="header-container">
-        <div class="header-content">
-          <!-- Back button -->
-          <button @click="goToAdmin" class="back-btn">
-            <i class="bi bi-arrow-left"></i>
-            <span class="back-text">Back to Admin</span>
-          </button>
-
-          <!-- Logo -->
-          <div class="logo-container">
-            <i class="bi bi-credit-card logo-icon"></i>
-          </div>
-
-          <!-- Current time -->
-          <div class="time-display">
-            {{ currentTime }}
-          </div>
-        </div>
-      </div>
-    </header>
 
     <!-- Main Content -->
     <main class="scanner-main">
@@ -593,73 +597,11 @@ function goToCardAssignment() {
   flex-direction: column;
 }
 
-/* Header */
-.scanner-header {
-  background: var(--brand-primary);
-  padding: var(--space-xl) 0;
-  box-shadow: var(--shadow-md);
-}
-
-.header-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 var(--space-lg);
-}
-
-.header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-}
-
-.back-btn {
-  background: var(--bg-card);
-  color: var(--brand-primary);
-  padding: var(--space-md) var(--space-lg);
-  border: none;
-  border-radius: var(--radius-lg);
-  font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  transition: all var(--transition-fast);
-  box-shadow: var(--shadow-sm);
-}
-
-.back-btn:hover {
-  background: var(--bg-secondary);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.back-text {
-  display: none;
-}
-
-.logo-container {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.logo-icon {
-  font-size: 4rem;
-  color: white;
-  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
-}
-
-.time-display {
-  color: white;
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  display: none;
-}
 
 /* Main Content */
 .scanner-main {
   flex: 1;
+  min-height: 0;
   padding: var(--space-2xl) var(--space-lg);
   overflow: hidden;
 }
@@ -668,6 +610,7 @@ function goToCardAssignment() {
   max-width: 1400px;
   margin: 0 auto;
   height: 100%;
+  min-height: 0;
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: var(--space-2xl);
@@ -701,6 +644,9 @@ function goToCardAssignment() {
   box-shadow: var(--shadow-xl);
   display: flex;
   flex-direction: column;
+  height: calc(100vh - 280px);
+  max-height: calc(100vh - 280px);
+  overflow: hidden;
 }
 
 .instructions-section {
@@ -728,15 +674,20 @@ function goToCardAssignment() {
   background: var(--bg-secondary);
   border-radius: var(--radius-xl);
   padding: var(--space-2xl);
-  margin-bottom: var(--space-xl);
   text-align: center;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .status-content {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--space-md);
+  width: 100%;
 }
 
 .status-icon {
@@ -1094,6 +1045,7 @@ function goToCardAssignment() {
 .history-sidebar {
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 /* History Card */
@@ -1104,8 +1056,12 @@ function goToCardAssignment() {
   padding: var(--space-xl);
   box-shadow: var(--shadow-xl);
   flex: 1;
+  height: calc(100vh - 280px);
+  max-height: calc(100vh - 280px);
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .history-title {
@@ -1129,7 +1085,11 @@ function goToCardAssignment() {
 
 .scan-history {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   background: var(--bg-secondary);
   border-radius: var(--radius-xl);
   padding: var(--space-md);
