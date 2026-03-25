@@ -232,7 +232,7 @@ onMounted(() => {
   checkAdminStatus()
 })
 
-// Check if user is admin (using environment variables)
+// Check if user is admin
 const isAdmin = ref(false);
 
 async function checkAdminStatus() {
@@ -241,8 +241,8 @@ async function checkAdminStatus() {
     return;
   }
 
-  const adminEmailsString = import.meta.env.VITE_ADMIN_EMAILS || '';
-  const adminEmails = adminEmailsString.split(',').map(email => email.trim()).filter(email => email);
+  const { isAuthenticated, user } = useAuth();
+  const isAdmin = computed(() => user.value?.isAdmin === true);
 
   isAdmin.value = adminEmails.includes(user.value.email);
 }

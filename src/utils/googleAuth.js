@@ -31,7 +31,8 @@ export async function signInWithGoogle() {
         useAuth().setAuth({
             name: user.displayName,
             email: user.email,
-            picture: user.photoURL
+            picture: user.photoURL,
+            isAdmin: Boolean(response?.is_admin)
         });
         console.log('✅ Auth state set');
 

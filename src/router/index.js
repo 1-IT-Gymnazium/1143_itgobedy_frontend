@@ -68,33 +68,15 @@ const router = createRouter({
   ]
 })
 
-// Helper function to check if user is admin (now using environment variables)
-function isUserAdmin() {
-  const userEmail = localStorage.getItem('user_email');
-  if (!userEmail) return false;
-
-  // Get admin emails from environment variable
-  const adminEmailsString = import.meta.env.VITE_ADMIN_EMAILS || '';
-  const adminEmails = adminEmailsString.split(',').map(email => email.trim()).filter(email => email);
-
-  return adminEmails.includes(userEmail);
-}
-
 // Track if we're in the middle of a logout
 export let isLoggingOut = false;
 
 // Navigation guard to check authentication and admin access
 router.beforeEach((to, from, next) => {
-  const token = document.cookie.includes('access_token_cookie');
-    const publicPages = ['/', '/NotFound', '/server-error'];
+    const token = document.cookie.includes('access_token_cookie');
+    const publicPages = ['/', '/server-error'];
     const authRequired = !publicPages.includes(to.path);
 
-    // Prevent infinite redirect loop
-    if (authRequired && !token) {
-        if (to.path !== '/') {
-            return next('/');
-        }
-    }
 
     // Check socket connection for public pages (except during logout)
     if (!authRequired && !isLoggingOut) {
@@ -113,16 +95,27 @@ router.beforeEach((to, from, next) => {
         isLoggingOut = false;
     }
 
+    // Auth check
     if (authRequired && !token) {
         return next('/');
     }
 
+    // Admin route check (frontend UX gate)
+    if (to.meta.requiresAdmin) {
+        const isAdmin = localStorage.getItem('user_is_admin') === 'true';
+        if (!isAdmin) {
+            return next('/dashboard');
+        }
+    }
+
+    // Redirect authenticated users away from login page
     if (!authRequired && token && to.path === '/') {
         return next('/dashboard');
     }
 
     next();
 });
+
 
 // Export function to set logout state
 export function setLoggingOut(value) {
