@@ -1,5 +1,5 @@
 // Authentication composable
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../utils/api.js';
 import {setLoggingOut} from "@/router/index.js";
@@ -20,13 +20,72 @@ function initAuthState() {
       name: localStorage.getItem('user_name') || '',
       email: localStorage.getItem('user_email') || '',
       picture: localStorage.getItem('picture') || '',
-      isAdmin: localStorage.getItem('user_is_admin') === 'true'
+      isAdmin: false  // Will be computed from JWT, not from localStorage
     };
   }
 }
 
 // Initialize immediately when module loads
 initAuthState();
+
+// Utility function to decode JWT without external libraries
+function decodeJWT(token) {
+  try {
+    // JWT format: header.payload.signature
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    // Decode the payload (second part)
+    const payload = parts[1];
+    // Add padding if needed
+    const padded = payload + '='.repeat((4 - payload.length % 4) % 4);
+    const decoded = JSON.parse(atob(padded));
+    return decoded;
+  } catch (error) {
+    console.error('Failed to decode JWT:', error);
+    return null;
+  }
+}
+
+// Extract JWT from cookies
+function getJWTFromCookie() {
+  try {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'access_token_cookie') {
+        return value;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to extract JWT:', error);
+  }
+  return null;
+}
+
+// Check if user is admin based on JWT token
+function getAdminStatusFromJWT() {
+  try {
+    const token = getJWTFromCookie();
+    if (!token) {
+      return false;
+    }
+
+    const decoded = decodeJWT(token);
+    if (!decoded) {
+      return false;
+    }
+
+    // Check various common admin claim patterns in JWT
+    return decoded.isAdmin === true || 
+           decoded.is_admin === true || 
+           decoded.admin === true ||
+           (decoded.role && decoded.role === 'admin');
+  } catch (error) {
+    console.error('Failed to get admin status from JWT:', error);
+    return false;
+  }
+}
 
 export function useAuth() {
   const router = useRouter();
@@ -37,13 +96,13 @@ export function useAuth() {
             name: userData.name || '',
             email: userData.email || '',
             picture: userData.picture || '',
-            isAdmin: Boolean(userData.isAdmin)
+            isAdmin: false  // Don't set from userData - it will be computed from JWT
         };
 
         localStorage.setItem('user_name', user.value.name);
         localStorage.setItem('user_email', user.value.email);
         localStorage.setItem('picture', user.value.picture);
-        localStorage.setItem('user_is_admin', String(user.value.isAdmin));
+        // Don't store isAdmin in localStorage anymore
     }
     
     function clearAuth() {
@@ -87,6 +146,17 @@ export function useAuth() {
     return true;
   }
 
+  // Validate admin access by decoding JWT token - no backend call needed
+  function validateAdminAccess() {
+    return getAdminStatusFromJWT();
+  }
+
+  // Computed property for isAdmin - always checks JWT token, never localStorage
+  const isAdminComputed = computed(() => {
+    if (!isAuthenticated.value) return false;
+    return getAdminStatusFromJWT();
+  });
+
   return {
     isAuthenticated,
     user,
@@ -94,6 +164,8 @@ export function useAuth() {
     clearAuth,
     checkAuth,
     logout,
-    requireAuth
+    requireAuth,
+    validateAdminAccess,
+    isAdminComputed
   };
 }

@@ -71,6 +71,71 @@ const router = createRouter({
 // Track if we're in the middle of a logout
 export let isLoggingOut = false;
 
+// Utility function to decode JWT without external libraries
+function decodeJWT(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    
+    const payload = parts[1];
+    const padded = payload + '='.repeat((4 - payload.length % 4) % 4);
+    const decoded = JSON.parse(atob(padded));
+    return decoded;
+  } catch (error) {
+    console.error('Failed to decode JWT:', error);
+    return null;
+  }
+}
+
+// Extract JWT from cookies
+function getJWTFromCookie() {
+  try {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'access_token_cookie') {
+        return value;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to extract JWT:', error);
+  }
+  return null;
+}
+
+// Validate admin access by checking JWT token
+function validateAdminAccess() {
+  try {
+    const token = getJWTFromCookie();
+    if (!token) {
+      console.warn('No JWT token found');
+      return false;
+    }
+
+    const decoded = decodeJWT(token);
+    if (!decoded) {
+      console.warn('Failed to decode JWT token');
+      return false;
+    }
+
+    // Check various common admin claim patterns in JWT
+    const isAdmin = decoded.isAdmin === true || 
+                    decoded.is_admin === true || 
+                    decoded.admin === true ||
+                    (decoded.role && decoded.role === 'admin');
+
+    if (!isAdmin) {
+      console.warn('User is not admin according to JWT token');
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Admin validation failed:', error);
+    return false;
+  }
+}
+
 // Navigation guard to check authentication and admin access
 router.beforeEach((to, from, next) => {
     const token = document.cookie.includes('access_token_cookie');
@@ -100,10 +165,11 @@ router.beforeEach((to, from, next) => {
         return next('/');
     }
 
-    // Admin route check (frontend UX gate)
+    // Admin route check - validate JWT token locally (no backend call)
     if (to.meta.requiresAdmin) {
-        const isAdmin = localStorage.getItem('user_is_admin') === 'true';
+        const isAdmin = validateAdminAccess();
         if (!isAdmin) {
+            console.warn('User attempted to access admin route without proper admin status in JWT');
             return next('/dashboard');
         }
     }

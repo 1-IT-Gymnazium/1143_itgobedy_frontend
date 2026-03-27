@@ -255,7 +255,6 @@
 <script setup>
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
-import { computed } from 'vue'
 
 defineProps({
   isDarkMode: Boolean
@@ -265,8 +264,8 @@ defineEmits(['toggle-theme'])
 
 const router = useRouter()
 const route = useRoute()
-const { isAuthenticated, user } = useAuth()
-const isAdmin = computed(() => user.value?.isAdmin === true)
+const { isAuthenticated, isAdminComputed } = useAuth()
+const isAdmin = isAdminComputed
 
 function requestBackToAdmin() {
   window.dispatchEvent(new CustomEvent('back-to-admin'));

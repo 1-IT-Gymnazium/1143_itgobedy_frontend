@@ -1,12 +1,14 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAuth } from '@/composables/useAuth';
 import { io } from 'socket.io-client';
 import { useNotifications } from '../composables/useNotifications.js';
 import { api, socketAPI } from '../utils/api.js';
 import { withSocketRetry } from '../composables/useSocketRetry.js';
 
 const router = useRouter();
+const { validateAdminAccess } = useAuth();
 const { showError, showSuccess, clearNotification, message, messageType } = useNotifications();
 
 const students = ref([]);
@@ -37,6 +39,15 @@ const handleStudentUpdates = (data) => {
 };
 
 onMounted(async () => {
+  // Server-side admin validation - security gate
+  const hasAdminAccess = await validateAdminAccess();
+  if (!hasAdminAccess) {
+    console.warn('User does not have admin access - redirecting to dashboard');
+    showError('You do not have permission to access this page');
+    await router.push('/dashboard');
+    return;
+  }
+
   // Set up real-time listeners for students
   socketAPI.onStudentUpdates(handleStudentUpdates);
 

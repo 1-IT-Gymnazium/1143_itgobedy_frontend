@@ -1,9 +1,13 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useAuth } from '@/composables/useAuth';
+import { useNotifications } from '@/composables/useNotifications';
 import { io } from 'socket.io-client';
 
 const router = useRouter();
+const { validateAdminAccess } = useAuth();
+const { showError } = useNotifications();
 
 // Reactive data
 const currentTime = ref('');
@@ -29,7 +33,16 @@ let timeInterval = null;
 let hideTimeout = null;
 let lastDay = new Date().toDateString();
 
-onMounted(() => {
+onMounted(async () => {
+  // Server-side admin validation - security gate
+  const hasAdminAccess = await validateAdminAccess();
+  if (!hasAdminAccess) {
+    console.warn('User does not have admin access - redirecting to dashboard');
+    showError('You do not have permission to access this page');
+    await router.push('/dashboard');
+    return;
+  }
+
   updateTime();
   timeInterval = setInterval(updateTime, 1000);
   initializeSocket();
@@ -492,9 +505,6 @@ function goToCardAssignment() {
 
                 <!-- Student Information Display -->
                 <div class="student-card success">
-                  <div class="student-header">
-                    <h2 class="student-name">{{ studentInfo.name}} {{studentInfo.surname}}</h2>
-                  </div>
 
                   <div class="student-details">
                     <div class="lunch-status">

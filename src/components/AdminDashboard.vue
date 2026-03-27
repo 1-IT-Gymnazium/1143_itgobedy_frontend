@@ -9,7 +9,7 @@ import { withSocketRetry } from '@/composables/useSocketRetry';
 const { showError } = useNotifications();
 
 const router = useRouter();
-const { logout } = useAuth();
+const { logout, validateAdminAccess } = useAuth();
 const refreshInterval = ref(null);
 
 // Reactive data
@@ -70,6 +70,15 @@ const handleRecentLunchUpdates = (data) => {
 };
 
 onMounted(async () => {
+  // Server-side admin validation - security gate
+  const hasAdminAccess = await validateAdminAccess();
+  if (!hasAdminAccess) {
+    console.warn('User does not have admin access - redirecting to dashboard');
+    showError('You do not have permission to access this page');
+    await router.push('/dashboard');
+    return;
+  }
+
   // Set up real-time listeners
   socketAPI.onLunchUpdates(handleLunchUpdates);
   socketAPI.onAllStudentUpdates(handleAllStudentUpdates);
