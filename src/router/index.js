@@ -7,6 +7,7 @@ import GiftLunch from '../components/GiftLunch.vue';
 import AdminDashboard from '../components/AdminDashboard.vue';
 import CardScanner from '../components/CardScanner.vue';
 import CardAssignment from '../components/CardAssignment.vue';
+import UserManagement from '../components/UserManagement.vue';
 import ServerError from "@/components/ServerError.vue";
 import {socketAPI} from "@/utils/api.js";
 
@@ -52,6 +53,12 @@ const router = createRouter({
       path: '/admin/card-assignment',
       name: 'card-assignment',
       component: CardAssignment,
+      meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/admin/user-management',
+      name: 'user-management',
+      component: UserManagement,
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {

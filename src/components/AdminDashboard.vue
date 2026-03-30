@@ -197,6 +197,10 @@ function goToCardAssignment() {
   router.push('/admin/card-assignment');
 }
 
+function goToUserManagement() {
+  router.push('/admin/user-management');
+}
+
 function closeBetaBanner() {
   betaBannerVisible.value = false;
 }
@@ -246,7 +250,7 @@ function closeBetaBanner() {
               <div class="stat-header">
                 <h3 class="stat-title">Today's Lunch Orders</h3>
                 <div class="stat-icon red">
-                  <i class="bi bi-utensils"></i>
+                  <i class="bi bi-egg-fried"></i>
                 </div>
               </div>
               <div class="stat-value red">{{ stats.lunchCount }}</div>
@@ -292,6 +296,15 @@ function closeBetaBanner() {
                 <h3 class="tool-title">Card Assignment</h3>
                 <p class="tool-description">Assign NFC cards to students</p>
               </div>
+
+              <!-- User Management -->
+              <div class="tool-card users" @click="goToUserManagement">
+                <div class="tool-icon purple">
+                  <i class="bi bi-people-fill"></i>
+                </div>
+                <h3 class="tool-title">User Management</h3>
+                <p class="tool-description">View, edit and delete student accounts</p>
+              </div>
             </div>
           </div>
 
@@ -312,23 +325,6 @@ function closeBetaBanner() {
                 <div class="status-item">
                   <div class="status-value yellow">{{ stats.studentsWithoutLunch }}</div>
                   <div class="status-label">Without Lunch</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Recent Lunch Assignments -->
-            <div class="analytics-card recent-assignments">
-              <h2 class="analytics-title">Recent Lunch Assignments</h2>
-              <div class="assignments-list">
-                <div v-if="recentAssignments.recent_lunches && recentAssignments.recent_lunches.length > 0" class="assignments-content">
-                  <div     v-for="assignment in recentAssignments.recent_lunches" :key="`${assignment.student_name}-${assignment.timestamp}`" class="assignment-item">
-                    <span class="assignment-name">{{ assignment.student_name }}</span>
-                    <span class="assignment-lunch">Lunch #{{ assignment.lunch_id }}</span>
-                    <span class="assignment-timestamp">{{ assignment.timestamp }}</span>
-                  </div>
-                </div>
-                <div v-else class="no-assignments">
-                  <p>No recent lunch assignments</p>
                 </div>
               </div>
             </div>
@@ -626,6 +622,24 @@ function closeBetaBanner() {
 .tool-icon.blue {
   background: var(--info-bg);
   color: var(--info-text);
+}
+
+.tool-icon.purple {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+
+:root.dark .tool-icon.purple {
+  background: #2e1065;
+  color: #a78bfa;
+}
+
+.tool-card.users:hover {
+  background: #ede9fe;
+}
+
+:root.dark .tool-card.users:hover {
+  background: #2e1065;
 }
 
 .tool-title {

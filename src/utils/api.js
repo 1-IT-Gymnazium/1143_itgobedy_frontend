@@ -94,6 +94,15 @@ export const api = {
     method: 'DELETE'
   }),
 
+  updateStudent: (studentId, data) => {
+    const token = getJWTToken();
+    return apiRequest(`/api/students/${studentId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(data)
+    });
+  },
+
   giftLunch: (recipientData) => apiRequest('/api/give_lunch_direct', {
     method: 'POST',
     body: JSON.stringify(recipientData)
