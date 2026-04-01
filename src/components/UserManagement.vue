@@ -367,56 +367,52 @@ async function confirmDelete() {
             <button class="modal-close" @click="closeEdit"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body">
-            <div class="dev-banner" role="status" aria-live="polite">
-              <i class="bi bi-tools"></i>
-              <span><strong>Under development:</strong> User editing is still being refined.</span>
-            </div>
-            <div class="field-group">
-              <label>Full Name</label>
-              <input v-model="editForm.name" type="text" placeholder="User name" class="field-input" />
-            </div>
-            <div class="field-group">
-              <label>Card ID</label>
-              <div class="card-id-wrap">
-                <input
-                  v-model="editForm.card_id"
-                  type="text"
-                  placeholder="NFC card UID"
-                  class="field-input card-id-input"
-                  :class="{ 'input-scanned': scanStatus === 'scanned' }"
-                />
-                <button
-                  type="button"
-                  class="scan-btn"
-                  :class="{
-                    'scan-waiting':  scanStatus === 'waiting' || scanStatus === 'checking',
-                    'scan-scanned':  scanStatus === 'scanned',
-                    'scan-error':    scanStatus === 'error'
-                  }"
-                  @click="scanStatus === 'waiting' ? disconnectCardReader() : connectCardReader()"
-                  :disabled="scanStatus === 'checking'"
-                  :title="scanStatus === 'waiting' ? 'Cancel scan' : 'Scan NFC card'"
-                >
-                  <i v-if="scanStatus === 'waiting'"  class="bi bi-broadcast scan-pulse"></i>
-                  <i v-else-if="scanStatus === 'checking'" class="bi bi-hourglass-split scan-pulse"></i>
-                  <i v-else-if="scanStatus === 'scanned'" class="bi bi-check-circle-fill"></i>
-                  <i v-else-if="scanStatus === 'error'"   class="bi bi-exclamation-circle-fill"></i>
-                  <i v-else                               class="bi bi-wifi"></i>
-                </button>
-              </div>
-              <p v-if="scanStatus === 'waiting'" class="scan-hint">
-                <i class="bi bi-broadcast"></i> Waiting for card — hold it near the reader…
-              </p>
-              <p v-else-if="scanStatus === 'checking'" class="scan-hint">
-                <i class="bi bi-hourglass-split"></i> Checking card against database…
-              </p>
-              <p v-else-if="scanStatus === 'scanned'" class="scan-hint scanned">
-                <i class="bi bi-check-circle-fill"></i> Card scanned successfully!
-              </p>
-              <p v-else-if="scanStatus === 'error'" class="scan-hint error">
-                <i class="bi bi-exclamation-circle-fill"></i> Card reader not reachable. Enter UID manually.
-              </p>
-            </div>
+             <div class="field-group">
+               <label>Full Name</label>
+               <input v-model="editForm.name" type="text" placeholder="User name" class="field-input" />
+             </div>
+             <div class="field-group">
+               <label>Card ID</label>
+               <div class="card-id-wrap">
+                 <input
+                   v-model="editForm.card_id"
+                   type="text"
+                   placeholder="NFC card UID"
+                   class="field-input card-id-input"
+                   :class="{ 'input-scanned': scanStatus === 'scanned' }"
+                 />
+                 <button
+                   type="button"
+                   class="scan-btn"
+                   :class="{
+                     'scan-waiting':  scanStatus === 'waiting' || scanStatus === 'checking',
+                     'scan-scanned':  scanStatus === 'scanned',
+                     'scan-error':    scanStatus === 'error'
+                   }"
+                   @click="scanStatus === 'waiting' ? disconnectCardReader() : connectCardReader()"
+                   :disabled="scanStatus === 'checking'"
+                   :title="scanStatus === 'waiting' ? 'Cancel scan' : 'Scan NFC card'"
+                 >
+                   <i v-if="scanStatus === 'waiting'"  class="bi bi-broadcast scan-pulse"></i>
+                   <i v-else-if="scanStatus === 'checking'" class="bi bi-hourglass-split scan-pulse"></i>
+                   <i v-else-if="scanStatus === 'scanned'" class="bi bi-check-circle-fill"></i>
+                   <i v-else-if="scanStatus === 'error'"   class="bi bi-exclamation-circle-fill"></i>
+                   <i v-else                               class="bi bi-wifi"></i>
+                 </button>
+               </div>
+               <p v-if="scanStatus === 'waiting'" class="scan-hint">
+                 <i class="bi bi-broadcast"></i> Waiting for card — hold it near the reader…
+               </p>
+               <p v-else-if="scanStatus === 'checking'" class="scan-hint">
+                 <i class="bi bi-hourglass-split"></i> Checking card against database…
+               </p>
+               <p v-else-if="scanStatus === 'scanned'" class="scan-hint scanned">
+                 <i class="bi bi-check-circle-fill"></i> Card scanned successfully!
+               </p>
+               <p v-else-if="scanStatus === 'error'" class="scan-hint error">
+                 <i class="bi bi-exclamation-circle-fill"></i> Card reader not reachable. Enter UID manually.
+               </p>
+             </div>
 
             <!-- Taken UIDs reference list -->
             <div v-if="takenUids.length" class="taken-uids">
