@@ -1,0 +1,4 @@
+requests==2.31.0
+colorama==0.4.6
+pyserial==3.5
+pyscard==2.0.7
