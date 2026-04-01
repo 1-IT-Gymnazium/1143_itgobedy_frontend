@@ -289,6 +289,11 @@ async function confirmDelete() {
           </span>
         </div>
 
+        <div class="dev-banner dev-banner--page" role="status" aria-live="polite">
+          <i class="bi bi-tools"></i>
+          <span><strong>Under development:</strong> User management is still being refined.</span>
+        </div>
+
         <!-- Alert Banner -->
         <div
           v-if="message"
@@ -362,6 +367,10 @@ async function confirmDelete() {
             <button class="modal-close" @click="closeEdit"><i class="bi bi-x-lg"></i></button>
           </div>
           <div class="modal-body">
+            <div class="dev-banner" role="status" aria-live="polite">
+              <i class="bi bi-tools"></i>
+              <span><strong>Under development:</strong> User editing is still being refined.</span>
+            </div>
             <div class="field-group">
               <label>Full Name</label>
               <input v-model="editForm.name" type="text" placeholder="User name" class="field-input" />
@@ -860,6 +869,36 @@ async function confirmDelete() {
   gap: var(--space-lg);
 }
 
+.dev-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--warning-border, #f59e0b);
+  border-left: 4px solid #f59e0b;
+  background: var(--warning-bg, #fff7e6);
+  color: var(--warning-text, #7a4f01);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.dev-banner--page {
+  margin-bottom: var(--space-lg);
+}
+
+.dev-banner i {
+  margin-top: 2px;
+  color: #f59e0b;
+}
+
+[data-theme='dark'] .dev-banner {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.6);
+}
+
 .modal-body p {
   margin: 0;
   color: var(--text-primary);
@@ -1138,9 +1177,4 @@ async function confirmDelete() {
   .user-table td:nth-child(3) { display: none; }
 }
 </style>
-
-
-
-
-
 
