@@ -1,4 +1,4 @@
-# Luncheroo App UI
+# ITG Lunch App UI
 
 Frontend for the ITG lunch management system, built with Vue 3 + Vite.
 
