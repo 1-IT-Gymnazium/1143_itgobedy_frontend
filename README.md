@@ -256,12 +256,6 @@ Before production:
 - Configure strict CORS origins in both backend and card-reader server
 - Ensure secure cookie settings and HTTPS everywhere
 
-## Known Gaps / Cleanup Candidates
-
-- No automated test script is defined in `package.json`.
-- Some URLs are hardcoded (`http://localhost:3001`, `http://localhost:5000/api/lunch`) instead of env-driven configuration.
-- Mixed naming conventions from backend responses (`name/full_name`, `card_id/card_uid`) are normalized in UI code but should be unified at API layer.
-
 ## Additional Documentation
 
 - Card reader details and flow diagrams: `CARD_READER_ARCHITECTURE.md`
