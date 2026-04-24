@@ -1044,7 +1044,7 @@ async function confirmDelete() {
 
 .modal-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: var(--space-md);
   padding: var(--space-lg) var(--space-xl);
   border-top: 1px solid var(--border-primary);
@@ -1131,11 +1131,75 @@ async function confirmDelete() {
 
 /* Responsive */
 @media (max-width: 640px) {
-  .um-title span { display: none; }
+  /* Header */
+  .um-header {
+    padding: var(--space-md) 0;
+  }
+  .um-header-inner {
+    padding: 0 var(--space-md);
+    gap: var(--space-sm);
+  }
+  .back-btn span { display: none; }
+  .back-btn { padding: var(--space-sm) var(--space-md); }
+  .um-title { font-size: var(--font-size-lg); gap: var(--space-sm); }
+  .refresh-btn { padding: var(--space-sm) var(--space-md); font-size: var(--font-size-base); }
+
+  /* Main */
+  .um-main { padding: var(--space-lg) 0; }
+  .um-container { padding: 0 var(--space-md); }
+
+  /* Toolbar */
+  .um-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+  }
+  .search-wrap { min-width: unset; }
+  .user-count { text-align: right; }
+
+  /* Table */
+  .table-wrap { border-radius: var(--radius-lg); overflow-x: auto; }
+  .user-table { font-size: var(--font-size-sm); }
   .user-table th:nth-child(1),
   .user-table td:nth-child(1),
   .user-table th:nth-child(3),
   .user-table td:nth-child(3) { display: none; }
+  .user-table th, .user-table td { padding: var(--space-sm) var(--space-md); }
+  .name-cell { gap: var(--space-sm); }
+  .avatar { width: 28px; height: 28px; font-size: var(--font-size-xs); }
+  .actions-col { width: 80px; }
+  .action-btn { width: 30px; height: 30px; font-size: var(--font-size-sm); }
+
+  /* Modals — slide down from top, below the header */
+  .modal-backdrop { padding: var(--space-md); align-items: flex-start; padding-top: 76px; }
+  .modal-box {
+    max-width: 100%;
+    border-radius: var(--radius-2xl);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-header { padding: var(--space-lg) var(--space-lg) var(--space-md); }
+  .modal-header h2 { font-size: var(--font-size-lg); }
+  .modal-body { padding: var(--space-lg); gap: var(--space-md); }
+  .modal-footer {
+    padding: var(--space-md) var(--space-lg);
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+  .btn { width: 100%; justify-content: center; padding: var(--space-md); }
+
+  /* Taken UIDs */
+  .taken-uids-list { max-height: 120px; }
+  .taken-uid-code { min-width: 80px; font-size: var(--font-size-xs); }
+}
+
+@media (max-width: 380px) {
+  .um-title { font-size: var(--font-size-base); }
+  /* Hide Lunch column on very small screens */
+  .user-table th:nth-child(4),
+  .user-table td:nth-child(4) { display: none; }
 }
 </style>
 
